@@ -66,16 +66,20 @@ read -r -p "Select repository [1/2]: " REPO_CHOICE
 if [ "$REPO_CHOICE" = "2" ]; then
   read -r -p "Enter GitHub repository name (e.g. your-university/hroot): " TARGET_REPO
   TARGET_REPO="${TARGET_REPO:-$DEFAULT_REPO}"
-  read -r -p "Enter branch or tag (Default: master): " TARGET_BRANCH
-  TARGET_BRANCH="${TARGET_BRANCH:-$DEFAULT_BRANCH}"
-  read -r -p "Enter Docker Image Tag (Default: ${TARGET_BRANCH}): " TARGET_TAG
-  TARGET_TAG="${TARGET_TAG:-$TARGET_BRANCH}"
-  [ "$TARGET_TAG" = "master" ] && TARGET_TAG="latest"
+  read -r -p "Enter branch or release tag (Default: master): " TARGET_REF
+  TARGET_REF="${TARGET_REF:-master}"
+  TARGET_BRANCH="$TARGET_REF"
+  if [ "$TARGET_REF" = "master" ]; then
+    TARGET_TAG="latest"
+  else
+    TARGET_TAG="$TARGET_REF"
+  fi
 else
   TARGET_REPO="$DEFAULT_REPO"
-  TARGET_BRANCH="$DEFAULT_BRANCH"
+  TARGET_BRANCH="master"
   TARGET_TAG="latest"
 fi
+
 
 # 4. Authenticate Docker with GitHub Container Registry
 if command -v docker >/dev/null 2>&1; then
