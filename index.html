@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HROOT - Installation & Documentation</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --code-bg: #090d16;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 680px;
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 32px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .logo {
+      font-size: 32px;
+      font-weight: 800;
+      color: #60a5fa;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    p {
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 24px;
+      font-size: 15px;
+    }
+    .command-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 14px;
+      color: #38bdf8;
+      overflow-x: auto;
+    }
+    .btn-copy {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-left: 12px;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .btn-copy:hover { background: #1d4ed8; }
+    .links {
+      display: flex;
+      gap: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+      font-size: 14px;
+    }
+    .links a {
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .links a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">🚀 HROOT</div>
+    <h1>Hamburg Registration Organization Online Tool</h1>
+    <p>
+      An advanced laboratory management and participant recruitment system for scientific economic experiments.
+    </p>
+
+    <p style="margin-bottom: 8px; font-weight: 600; color: var(--text);">One-Line Interactive Installer:</p>
+    <div class="command-box">
+      <code id="cmd">curl -fsSL https://wiso-forschungslabor.github.io/hroot-documentation/install.sh | bash</code>
+      <button class="btn-copy" onclick="copyCmd()">Copy</button>
+    </div>
+
+    <div class="links">
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki" target="_blank">📖 Documentation Wiki</a>
+      <a href="https://uhh.de/wiso-hroot-info" target="_blank">ℹ️ Licensing & Info</a>
+      <a href="https://github.com/wiso-forschungslabor/hroot" target="_blank">💻 GitHub Repository</a>
+    </div>
+  </div>
+
+  <script>
+    function copyCmd() {
+      const text = document.getElementById('cmd').innerText;
+      navigator.clipboard.writeText(text);
+      const btn = document.querySelector('.btn-copy');
+      btn.innerText = 'Copied!';
+      setTimeout(() => btn.innerText = 'Copy', 2000);
+    }
+  </script>
+</body>
+</html>
