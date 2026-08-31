@@ -64,7 +64,7 @@ echo "2) Custom GitHub Fork"
 read -r -p "Select repository [1/2]: " REPO_CHOICE
 
 if [ "$REPO_CHOICE" = "2" ]; then
-  read -r -p "Enter GitHub repository name (e.g. n0c1urne/hroot): " TARGET_REPO
+  read -r -p "Enter GitHub repository name (e.g. your-university/hroot): " TARGET_REPO
   TARGET_REPO="${TARGET_REPO:-$DEFAULT_REPO}"
   read -r -p "Enter branch (Default: master): " TARGET_BRANCH
   TARGET_BRANCH="${TARGET_BRANCH:-$DEFAULT_BRANCH}"
@@ -76,12 +76,18 @@ fi
 # 4. Authenticate Docker with GitHub Container Registry
 if command -v docker >/dev/null 2>&1; then
   echo -e "\n${BOLD}Authenticating with GitHub Container Registry (ghcr.io)...${NC}"
-  if echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-    echo -e "✓ Successfully logged in to ${GREEN}ghcr.io${NC}."
+  DOCKER_BIN="docker"
+  if ! echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+    if command -v sudo >/dev/null 2>&1 && echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+      echo -e "✓ Successfully logged in to ${GREEN}ghcr.io${NC} (via sudo)."
+    else
+      echo -e "${YELLOW}Warning: Docker login to ghcr.io failed. Continuing anyway...${NC}"
+    fi
   else
-    echo -e "${YELLOW}Warning: Docker login to ghcr.io failed. Continuing anyway...${NC}"
+    echo -e "✓ Successfully logged in to ${GREEN}ghcr.io${NC}."
   fi
 fi
+
 
 # 5. Fetch and execute the full installer from the private repository
 INSTALLER_URL="https://raw.githubusercontent.com/${TARGET_REPO}/${TARGET_BRANCH}/bin/install"
