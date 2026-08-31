@@ -10,10 +10,16 @@
 
 set -e
 
-# Reconnect stdin to controlling terminal if piped via curl | bash
-if [ ! -t 0 ] && [ -e /dev/tty ]; then
-  exec < /dev/tty
-fi
+# Helper to read from terminal even when piped via curl | bash
+prompt_read() {
+  if [ -t 0 ]; then
+    read "$@"
+  elif [ -r /dev/tty ]; then
+    read "$@" < /dev/tty
+  else
+    read "$@"
+  fi
+}
 
 # ANSI Color formatting
 BOLD='\033[1m'
@@ -39,13 +45,13 @@ echo ""
 
 # 1. GitHub Username
 if [ -z "$GITHUB_USER" ]; then
-  read -r -p "GitHub Username: " GITHUB_USER
+  prompt_read -r -p "GitHub Username: " GITHUB_USER
 fi
 
 # 2. GitHub Personal Access Token (PAT)
 if [ -z "$GITHUB_TOKEN" ]; then
   echo -e "\nEnter your GitHub Personal Access Token (classic with 'repo' & 'read:packages' scopes):"
-  read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
+  prompt_read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
   echo ""
 fi
 
@@ -61,12 +67,12 @@ DEFAULT_BRANCH="master"
 echo -e "\n${BOLD}Target Repository:${NC}"
 echo "1) Official Upstream (${DEFAULT_REPO}) [Default]"
 echo "2) Custom GitHub Fork"
-read -r -p "Select repository [1/2]: " REPO_CHOICE
+prompt_read -r -p "Select repository [1/2]: " REPO_CHOICE
 
 if [ "$REPO_CHOICE" = "2" ]; then
-  read -r -p "Enter GitHub repository name (e.g. your-university/hroot): " TARGET_REPO
+  prompt_read -r -p "Enter GitHub repository name (e.g. your-university/hroot): " TARGET_REPO
   TARGET_REPO="${TARGET_REPO:-$DEFAULT_REPO}"
-  read -r -p "Enter branch or release tag (Default: master): " TARGET_REF
+  prompt_read -r -p "Enter branch or release tag (Default: master): " TARGET_REF
   TARGET_REF="${TARGET_REF:-master}"
   TARGET_BRANCH="$TARGET_REF"
   if [ "$TARGET_REF" = "master" ]; then
@@ -79,6 +85,7 @@ else
   TARGET_BRANCH="master"
   TARGET_TAG="latest"
 fi
+
 
 
 # 4. Authenticate Docker with GitHub Container Registry
