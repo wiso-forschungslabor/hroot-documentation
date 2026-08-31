@@ -1,0 +1,89 @@
+name: Sync Documentation with GitHub Wiki
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # Run daily at 04:00 UTC
+  workflow_dispatch: # Allow manual trigger via GitHub Actions UI
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Documentation Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone GitHub Wiki
+        run: |
+          git clone https://github.com/wiso-forschungslabor/hroot-documentation.wiki.git /tmp/wiki
+
+      - name: Sync Markdown Files and Convert Links
+        run: |
+          # Copy images
+          if [ -d "/tmp/wiki/images" ]; then
+            cp -r /tmp/wiki/images/* ./images/ 2>/dev/null || true
+          fi
+
+          # Copy markdown files
+          cp /tmp/wiki/*.md ./ 2>/dev/null || true
+
+          # Convert [[Wiki Links]] to [Markdown Links](File.md) and generate _sidebar.md
+          perl -e '
+          use strict;
+          use warnings;
+
+          sub convert {
+              my ($text) = @_;
+              $text =~ s/\[\[(.*?)\]\]/
+                  my $content = $1;
+                  my ($target, $label) = $content =~ m!^(.*?)\|(.*)$! ? ($1, $2) : ($content, $content);
+                  $target =~ s!^\s+|\s+$!!g;
+                  $label =~ s!^\s+|\s+$!!g;
+                  my $target_clean = $target;
+                  $target_clean =~ s!\s+!-!g;
+                  $target_clean .= ".md" unless $target_clean =~ m!\.md$!i;
+                  "[$label]($target_clean)"
+              /ge;
+              return $text;
+          }
+
+          if (-f "_Sidebar.md") {
+              open my $fh, "<:utf8", "_Sidebar.md";
+              my $content = do { local $/; <$fh> };
+              close $fh;
+              my $converted = convert($content);
+              open my $out, ">:utf8", "_sidebar.md";
+              print $out $converted;
+              close $out;
+          }
+
+          for my $file (glob("*.md")) {
+              next if $file =~ m!^_sidebar\.md$!i;
+              open my $fh, "<:utf8", $file;
+              my $content = do { local $/; <$fh> };
+              close $fh;
+              if ($content =~ m!\[\[!) {
+                  my $converted = convert($content);
+                  open my $out, ">:utf8", $file;
+                  print $out $converted;
+                  close $out;
+              }
+          }
+          '
+
+      - name: Commit and Push Changes if Wiki Updated
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes in Wiki. Documentation is up to date."
+          else
+            git commit -m "docs: auto-sync documentation from GitHub Wiki"
+            git push origin master
+          fi
