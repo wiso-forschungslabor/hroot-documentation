@@ -2,71 +2,103 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HROOT - Installation & Documentation</title>
+  <title>HROOT Documentation</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="Hamburg Registration and Organization Online Tool - Complete Documentation">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  
+  <link rel="icon" type="image/svg+xml" href="images/hroot_logo_rounded.svg">
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Docsify Theme -->
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify-darklight-theme@latest/dist/style.min.css">
+
   <style>
     :root {
-      --primary: #2563eb;
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --border: #334155;
-      --code-bg: #090d16;
+      --docsify_primary: #2563eb;
+      --theme-color: #2563eb;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--bg);
-      color: var(--text);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      font-size: 15px;
+      line-height: 1.7;
     }
-    .container {
-      max-width: 680px;
-      width: 100%;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 40px 32px;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    code, pre, kbd {
+      font-family: 'JetBrains Mono', monospace !important;
     }
-    .logo {
-      font-size: 32px;
-      font-weight: 800;
-      color: #60a5fa;
+    .app-name-link img {
+      max-height: 55px;
       margin-bottom: 8px;
     }
-    h1 {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 12px;
+    .sidebar {
+      padding-top: 20px;
     }
-    p {
-      color: var(--text-muted);
-      line-height: 1.6;
-      margin-bottom: 24px;
+    .sidebar-nav > ul > li > a {
+      font-weight: 700;
+      color: #1e293b;
       font-size: 15px;
     }
-    .command-box {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px 20px;
+    .markdown-section h1 {
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+    }
+    .markdown-section h2 {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-top: 36px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 8px;
+    }
+    .markdown-section h3 {
+      font-weight: 600;
+      margin-top: 28px;
+    }
+    .markdown-section code {
+      border-radius: 6px;
+      padding: 3px 6px;
+      font-size: 13.5px;
+    }
+    .installer-hero-box {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 20px 0 30px 0;
+      color: #f8fafc;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    .installer-hero-box h3 {
+      color: #60a5fa !important;
+      margin-top: 0 !important;
+      font-size: 17px;
+      font-weight: 700;
       display: flex;
       align-items: center;
+      gap: 8px;
+    }
+    .installer-code-line {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 10px;
+      display: flex;
       justify-content: space-between;
-      margin-bottom: 24px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 14px;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
       color: #38bdf8;
+      font-size: 13.5px;
       overflow-x: auto;
     }
-    .btn-copy {
-      background: var(--primary);
+    .installer-copy-btn {
+      background: #2563eb;
       color: white;
       border: none;
       padding: 6px 12px;
@@ -78,51 +110,88 @@
       flex-shrink: 0;
       transition: background 0.2s;
     }
-    .btn-copy:hover { background: #1d4ed8; }
-    .links {
-      display: flex;
-      gap: 16px;
-      border-top: 1px solid var(--border);
-      padding-top: 20px;
-      font-size: 14px;
+    .installer-copy-btn:hover {
+      background: #1d4ed8;
     }
-    .links a {
-      color: #60a5fa;
-      text-decoration: none;
-      font-weight: 500;
-    }
-    .links a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="logo">🚀 HROOT</div>
-    <h1>Hamburg Registration Organization Online Tool</h1>
-    <p>
-      An advanced laboratory management and participant recruitment system for scientific economic experiments.
-    </p>
-
-    <p style="margin-bottom: 8px; font-weight: 600; color: var(--text);">One-Line Interactive Installer:</p>
-    <div class="command-box">
-      <code id="cmd">curl -fsSL https://wiso-forschungslabor.github.io/hroot-documentation/install.sh | bash</code>
-      <button class="btn-copy" onclick="copyCmd()">Copy</button>
-    </div>
-
-    <div class="links">
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki" target="_blank">📖 Documentation Wiki</a>
-      <a href="https://uhh.de/wiso-hroot-info" target="_blank">ℹ️ Licensing & Info</a>
-      <a href="https://github.com/wiso-forschungslabor/hroot" target="_blank">💻 GitHub Repository</a>
-    </div>
-  </div>
-
+  <div id="app">Loading HROOT Documentation...</div>
   <script>
-    function copyCmd() {
-      const text = document.getElementById('cmd').innerText;
-      navigator.clipboard.writeText(text);
-      const btn = document.querySelector('.btn-copy');
-      btn.innerText = 'Copied!';
-      setTimeout(() => btn.innerText = 'Copy', 2000);
-    }
+    window.$docsify = {
+      name: '<img src="images/hroot_logo_rounded.svg" alt="HROOT" style="max-height: 48px; display:block; margin: 0 auto 10px auto;">HROOT Docs',
+      repo: 'https://github.com/wiso-forschungslabor/hroot',
+      homepage: 'Home.md',
+      loadSidebar: '_sidebar.md',
+      auto2top: true,
+      subMaxLevel: 3,
+      maxLevel: 4,
+      search: {
+        maxAge: 86400000,
+        paths: 'auto',
+        placeholder: 'Search documentation...',
+        noData: 'No results found',
+        depth: 4
+      },
+      copyCode: {
+        buttonText: 'Copy',
+        errorText: 'Error',
+        successText: 'Copied!'
+      },
+      darklightTheme: {
+        siteFont: 'Inter',
+        defaultTheme: 'light',
+        codeFontFamily: 'JetBrains Mono',
+        bodyFontSize: '15px',
+        dark: {
+          accent: '#60a5fa',
+          background: '#0f172a',
+          textColor: '#f8fafc',
+          codeBackgroundColor: '#1e293b'
+        },
+        light: {
+          accent: '#2563eb',
+          background: '#ffffff',
+          textColor: '#1e293b',
+          codeBackgroundColor: '#f8fafc'
+        }
+      },
+      plugins: [
+        function(hook, vm) {
+          hook.beforeEach(function(content) {
+            // Render hero installer box on Home.md
+            if (vm.route.file === 'Home.md' || vm.route.file === 'README.md') {
+              var hero = '<div class="installer-hero-box">' +
+                '<h3>🚀 One-Line Interactive Installer</h3>' +
+                '<p style="color: #94a3b8; margin: 4px 0 10px 0; font-size: 13.5px;">Run this command in any Linux / macOS / WSL terminal to set up HROOT with precompiled Docker containers:</p>' +
+                '<div class="installer-code-line">' +
+                '<code id="hero-cmd">curl -fsSL https://wiso-forschungslabor.github.io/hroot-documentation/install.sh | bash</code>' +
+                '<button class="installer-copy-btn" onclick="navigator.clipboard.writeText(\'curl -fsSL https://wiso-forschungslabor.github.io/hroot-documentation/install.sh | bash\'); this.innerText=\'Copied!\'; setTimeout(()=>this.innerText=\'Copy\', 2000)">Copy</button>' +
+                '</div>' +
+                '</div>\n\n';
+              return hero + content;
+            }
+            return content;
+          });
+        }
+      ]
+    };
   </script>
+  <!-- Docsify v4 -->
+  <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+  <!-- Search Plugin -->
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+  <!-- Copy to Clipboard Plugin -->
+  <script src="//cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
+  <!-- Zoom Image Plugin -->
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
+  <!-- Dark / Light Theme Switcher -->
+  <script src="//cdn.jsdelivr.net/npm/docsify-darklight-theme@latest/dist/index.min.js"></script>
+  <!-- Prism Syntax Highlighting -->
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-ruby.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-sql.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
 </body>
 </html>
