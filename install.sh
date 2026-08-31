@@ -4,21 +4,16 @@
 # Repository: https://github.com/wiso-forschungslabor/hroot-documentation
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/wiso-forschungslabor/hroot-documentation/master/install.sh | bash
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/wiso-forschungslabor/hroot-documentation/master/install.sh)"
+#   or: curl -fsSL https://raw.githubusercontent.com/wiso-forschungslabor/hroot-documentation/master/install.sh | bash
 # ==============================================================================
 
 set -e
 
-# Helper to read from /dev/tty when script is piped via curl | bash
-prompt_read() {
-  if [ -t 0 ]; then
-    read "$@"
-  elif [ -c /dev/tty ]; then
-    read "$@" < /dev/tty
-  else
-    read "$@"
-  fi
-}
+# Reconnect stdin to controlling terminal if piped via curl | bash
+if [ ! -t 0 ] && [ -e /dev/tty ]; then
+  exec < /dev/tty
+fi
 
 # ANSI Color formatting
 BOLD='\033[1m'
@@ -34,19 +29,23 @@ echo "=================================================================="
 echo "           🚀 HROOT Bootstrap Installer                         "
 echo "=================================================================="
 echo -e "${NC}"
-echo "HROOT is hosted in a private GitHub repository."
+echo -e "${YELLOW}ℹ️  Hinweis zur Berechtigung & Lizenzierung:${NC}"
+echo -e "Zur Installation wird eine Zugriffsberechtigung für das private HROOT-Repository benötigt."
+echo -e "Lizenzen und Zugangsinformationen können über ${BOLD}https://uhh.de/wiso-hroot-info${NC} bezogen werden."
+echo ""
 echo "Please provide your authorized GitHub credentials to proceed."
+echo "------------------------------------------------------------------"
 echo ""
 
 # 1. GitHub Username
 if [ -z "$GITHUB_USER" ]; then
-  prompt_read -r -p "GitHub Username: " GITHUB_USER
+  read -r -p "GitHub Username: " GITHUB_USER
 fi
 
 # 2. GitHub Personal Access Token (PAT)
 if [ -z "$GITHUB_TOKEN" ]; then
   echo -e "\nEnter your GitHub Personal Access Token (classic with 'repo' & 'read:packages' scopes):"
-  prompt_read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
+  read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
   echo ""
 fi
 
@@ -62,12 +61,12 @@ DEFAULT_BRANCH="master"
 echo -e "\n${BOLD}Target Repository:${NC}"
 echo "1) Official Upstream (${DEFAULT_REPO}) [Default]"
 echo "2) Custom GitHub Fork"
-prompt_read -r -p "Select repository [1/2]: " REPO_CHOICE
+read -r -p "Select repository [1/2]: " REPO_CHOICE
 
 if [ "$REPO_CHOICE" = "2" ]; then
-  prompt_read -r -p "Enter GitHub repository name (e.g. n0c1urne/hroot): " TARGET_REPO
+  read -r -p "Enter GitHub repository name (e.g. n0c1urne/hroot): " TARGET_REPO
   TARGET_REPO="${TARGET_REPO:-$DEFAULT_REPO}"
-  prompt_read -r -p "Enter branch (Default: master): " TARGET_BRANCH
+  read -r -p "Enter branch (Default: master): " TARGET_BRANCH
   TARGET_BRANCH="${TARGET_BRANCH:-$DEFAULT_BRANCH}"
 else
   TARGET_REPO="$DEFAULT_REPO"
@@ -100,11 +99,7 @@ if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" "$INSTALLER_URL" -o "$TM
   export HROOT_REPO="$TARGET_REPO"
   export HROOT_BRANCH="$TARGET_BRANCH"
   
-  if [ -c /dev/tty ]; then
-    bash "$TMP_INSTALLER" < /dev/tty
-  else
-    bash "$TMP_INSTALLER"
-  fi
+  bash "$TMP_INSTALLER"
   rm -f "$TMP_INSTALLER"
 else
   echo -e "${RED}Error: Failed to download installer from ${INSTALLER_URL}.${NC}"
