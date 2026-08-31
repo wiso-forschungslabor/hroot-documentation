@@ -9,6 +9,17 @@
 
 set -e
 
+# Helper to read from /dev/tty when script is piped via curl | bash
+prompt_read() {
+  if [ -t 0 ]; then
+    read "$@"
+  elif [ -c /dev/tty ]; then
+    read "$@" < /dev/tty
+  else
+    read "$@"
+  fi
+}
+
 # ANSI Color formatting
 BOLD='\033[1m'
 GREEN='\033[0;32m'
@@ -29,13 +40,13 @@ echo ""
 
 # 1. GitHub Username
 if [ -z "$GITHUB_USER" ]; then
-  read -r -p "GitHub Username: " GITHUB_USER
+  prompt_read -r -p "GitHub Username: " GITHUB_USER
 fi
 
 # 2. GitHub Personal Access Token (PAT)
 if [ -z "$GITHUB_TOKEN" ]; then
   echo -e "\nEnter your GitHub Personal Access Token (classic with 'repo' & 'read:packages' scopes):"
-  read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
+  prompt_read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
   echo ""
 fi
 
@@ -51,12 +62,12 @@ DEFAULT_BRANCH="master"
 echo -e "\n${BOLD}Target Repository:${NC}"
 echo "1) Official Upstream (${DEFAULT_REPO}) [Default]"
 echo "2) Custom GitHub Fork"
-read -r -p "Select repository [1/2]: " REPO_CHOICE
+prompt_read -r -p "Select repository [1/2]: " REPO_CHOICE
 
 if [ "$REPO_CHOICE" = "2" ]; then
-  read -r -p "Enter GitHub repository name (e.g. n0c1urne/hroot): " TARGET_REPO
+  prompt_read -r -p "Enter GitHub repository name (e.g. n0c1urne/hroot): " TARGET_REPO
   TARGET_REPO="${TARGET_REPO:-$DEFAULT_REPO}"
-  read -r -p "Enter branch (Default: master): " TARGET_BRANCH
+  prompt_read -r -p "Enter branch (Default: master): " TARGET_BRANCH
   TARGET_BRANCH="${TARGET_BRANCH:-$DEFAULT_BRANCH}"
 else
   TARGET_REPO="$DEFAULT_REPO"
@@ -89,7 +100,11 @@ if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" "$INSTALLER_URL" -o "$TM
   export HROOT_REPO="$TARGET_REPO"
   export HROOT_BRANCH="$TARGET_BRANCH"
   
-  bash "$TMP_INSTALLER"
+  if [ -c /dev/tty ]; then
+    bash "$TMP_INSTALLER" < /dev/tty
+  else
+    bash "$TMP_INSTALLER"
+  fi
   rm -f "$TMP_INSTALLER"
 else
   echo -e "${RED}Error: Failed to download installer from ${INSTALLER_URL}.${NC}"
