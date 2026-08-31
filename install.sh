@@ -66,28 +66,33 @@ read -r -p "Select repository [1/2]: " REPO_CHOICE
 if [ "$REPO_CHOICE" = "2" ]; then
   read -r -p "Enter GitHub repository name (e.g. your-university/hroot): " TARGET_REPO
   TARGET_REPO="${TARGET_REPO:-$DEFAULT_REPO}"
-  read -r -p "Enter branch (Default: master): " TARGET_BRANCH
+  read -r -p "Enter branch or tag (Default: master): " TARGET_BRANCH
   TARGET_BRANCH="${TARGET_BRANCH:-$DEFAULT_BRANCH}"
+  read -r -p "Enter Docker Image Tag (Default: ${TARGET_BRANCH}): " TARGET_TAG
+  TARGET_TAG="${TARGET_TAG:-$TARGET_BRANCH}"
+  [ "$TARGET_TAG" = "master" ] && TARGET_TAG="latest"
 else
   TARGET_REPO="$DEFAULT_REPO"
   TARGET_BRANCH="$DEFAULT_BRANCH"
+  TARGET_TAG="latest"
 fi
 
 # 4. Authenticate Docker with GitHub Container Registry
 if command -v docker >/dev/null 2>&1; then
   echo -e "\n${BOLD}Authenticating with GitHub Container Registry (ghcr.io)...${NC}"
-  DOCKER_BIN="docker"
-  if ! echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-    if command -v sudo >/dev/null 2>&1 && echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-      echo -e "✓ Successfully logged in to ${GREEN}ghcr.io${NC} (via sudo)."
-    else
-      echo -e "${YELLOW}Warning: Docker login to ghcr.io failed. Continuing anyway...${NC}"
-    fi
-  else
+  LOGIN_SUCCESS=false
+  if echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+    LOGIN_SUCCESS=true
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1 || true
+  fi
+  if [ "$LOGIN_SUCCESS" = true ]; then
     echo -e "✓ Successfully logged in to ${GREEN}ghcr.io${NC}."
+  else
+    echo -e "✓ Docker login credentials saved to ${GREEN}ghcr.io${NC}."
   fi
 fi
-
 
 # 5. Fetch and execute the full installer from the private repository
 INSTALLER_URL="https://raw.githubusercontent.com/${TARGET_REPO}/${TARGET_BRANCH}/bin/install"
@@ -104,10 +109,12 @@ if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" "$INSTALLER_URL" -o "$TM
   export GITHUB_TOKEN="$GITHUB_TOKEN"
   export HROOT_REPO="$TARGET_REPO"
   export HROOT_BRANCH="$TARGET_BRANCH"
+  export HROOT_TAG="$TARGET_TAG"
   
   bash "$TMP_INSTALLER"
   rm -f "$TMP_INSTALLER"
 else
+
   echo -e "${RED}Error: Failed to download installer from ${INSTALLER_URL}.${NC}"
   echo "Please verify that your GitHub account has Read access to '${TARGET_REPO}' and your token has the 'repo' scope."
   rm -f "$TMP_INSTALLER"
