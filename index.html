@@ -1,155 +1,403 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>HROOT Documentation</title>
-  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
-  <meta name="description" content="Hamburg Registration and Organization Online Tool - Documentation">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HROOT - Hamburg Registration and Organization Online Tool</title>
   <link rel="icon" type="image/svg+xml" href="images/hroot_logo_rounded.svg">
   
-  <!-- Classic clean Docsify theme -->
-  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
-
   <style>
     :root {
-      --theme-color: #004994; /* Classic Hamburg / Academic Blue */
+      --primary: #004994;       /* Universitäts-/Forschungsblau */
+      --primary-dark: #003366;
+      --text: #1f2937;
+      --text-muted: #4b5563;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --border-dark: #cbd5e1;
+      --code-bg: #0f172a;
+      --code-text: #38bdf8;
     }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji" !important;
-      font-size: 15px;
-      color: #24292f;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
       line-height: 1.6;
-    }
-    .sidebar {
-      background-color: #f6f8fa;
-      border-right: 1px solid #d0d7de;
-      padding-top: 15px;
-    }
-    .app-name-link img {
-      max-height: 48px;
-      display: block;
-      margin: 0 auto 12px auto;
-    }
-    .sidebar-nav ul {
-      padding-left: 15px;
-    }
-    .sidebar-nav li {
-      margin: 4px 0;
-      font-size: 14px;
-    }
-    .sidebar-nav > ul > li > a {
-      font-weight: 600;
-      color: #24292f;
-    }
-    .markdown-section {
-      max-width: 900px;
-      padding: 30px 45px 50px 45px;
-    }
-    .markdown-section h1 {
-      font-size: 28px;
-      font-weight: 600;
-      color: #1f2328;
-      border-bottom: 1px solid #d8dee4;
-      padding-bottom: 8px;
-      margin-top: 0;
-    }
-    .markdown-section h2 {
-      font-size: 22px;
-      font-weight: 600;
-      color: #1f2328;
-      border-bottom: 1px solid #d8dee4;
-      padding-bottom: 6px;
-      margin-top: 32px;
-    }
-    .markdown-section h3 {
-      font-size: 17px;
-      font-weight: 600;
-      color: #1f2328;
-      margin-top: 24px;
-    }
-    .markdown-section code {
-      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace !important;
-      background-color: #eff1f3;
-      border-radius: 4px;
-      padding: 2px 5px;
-      font-size: 13px;
-      color: #1f2328;
-    }
-    .markdown-section pre {
-      background-color: #f6f8fa;
-      border: 1px solid #d0d7de;
-      border-radius: 6px;
-    }
-    .markdown-section pre code {
-      background-color: transparent;
       padding: 0;
+      margin: 0;
     }
-    .markdown-section blockquote {
-      border-left: 4px solid #d0d7de;
-      color: #57606a;
-      padding: 0 1em;
-      margin: 16px 0;
+
+    /* Top Bar / Header */
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 32px 20px 28px 20px;
     }
-    .markdown-section table {
-      border-collapse: collapse;
-      width: 100%;
-      margin: 16px 0;
+
+    .header-content {
+      max-width: 1040px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 24px;
     }
-    .markdown-section table th, .markdown-section table td {
-      border: 1px solid #d0d7de;
-      padding: 8px 12px;
+
+    .logo-container img {
+      width: 72px;
+      height: 72px;
+      display: block;
     }
-    .markdown-section table th {
-      background-color: #f6f8fa;
+
+    .header-text h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+    }
+
+    .header-text p {
+      font-size: 15px;
+      color: var(--text-muted);
+    }
+
+    /* Main Container */
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 32px 20px 60px 20px;
+    }
+
+    /* Action & Installation Box */
+    .hero-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-dark);
+      border-radius: 8px;
+      padding: 28px;
+      margin-bottom: 40px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .hero-card h2 {
+      font-size: 18px;
       font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 8px;
     }
-    .search input {
-      border: 1px solid #d0d7de !important;
-      border-radius: 6px !important;
-      padding: 6px 10px !important;
-      font-size: 13.5px !important;
+
+    .hero-card .desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .installer-box {
+      background: var(--code-bg);
+      border-radius: 6px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .installer-box code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: var(--code-text);
+      font-size: 14px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .btn-copy {
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .btn-copy:hover {
+      background: var(--primary-dark);
+    }
+
+    .quick-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 18px;
+    }
+
+    .btn-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 4px;
+      font-size: 13.5px;
+      font-weight: 500;
+      text-decoration: none;
+      border: 1px solid var(--border-dark);
+      background: #ffffff;
+      color: #1e293b;
+      transition: all 0.15s;
+    }
+
+    .btn-link:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+
+    .btn-link.primary {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    /* Wiki Sections Grid */
+    .section-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .wiki-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+      gap: 18px;
+    }
+
+    .wiki-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .wiki-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .wiki-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .wiki-card h3 span {
+      color: var(--primary);
+    }
+
+    .wiki-card p {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .wiki-card .card-footer {
+      margin-top: 14px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    /* Footer */
+    footer {
+      background: #ffffff;
+      border-top: 1px solid var(--border);
+      padding: 28px 20px;
+      text-align: center;
+      font-size: 13.5px;
+      color: var(--text-muted);
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 640px) {
+      .header-content { flex-direction: column; text-align: center; }
+      .installer-box { flex-direction: column; align-items: stretch; }
+      .btn-copy { width: 100%; text-align: center; }
     }
   </style>
 </head>
 <body>
-  <div id="app">Loading HROOT Documentation...</div>
+
+  <header>
+    <div class="header-content">
+      <div class="logo-container">
+        <img src="images/hroot_logo_rounded.svg" alt="HROOT Logo">
+      </div>
+      <div class="header-text">
+        <h1>HROOT Documentation</h1>
+        <p>Hamburg Registration and Organization Online Tool &middot; WISO-Forschungslabor der Universität Hamburg</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- One-Line Installer Box -->
+    <div class="hero-card">
+      <h2>Installation & Schnellstart</h2>
+      <p class="desc">
+        HROOT wird über vorkompilierte Docker-Container betrieben. Führe folgenden Einzeiler im Terminal aus, um die interaktive Installation zu starten:
+      </p>
+      
+      <div class="installer-box">
+        <code id="cmd">curl -fsSL https://raw.githubusercontent.com/wiso-forschungslabor/hroot-documentation/master/install.sh | bash</code>
+        <button class="btn-copy" onclick="copyInstallCmd()">Befehl kopieren</button>
+      </div>
+
+      <div class="quick-links">
+        <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki" class="btn-link primary" target="_blank">
+          📖 Vollständiges Wiki öffnen
+        </a>
+        <a href="https://uhh.de/wiso-hroot-info" class="btn-link" target="_blank">
+          ℹ️ Lizenzierung & Berechtigungen
+        </a>
+        <a href="https://github.com/wiso-forschungslabor/hroot" class="btn-link" target="_blank">
+          💻 Quellcode Repository (GitHub)
+        </a>
+      </div>
+    </div>
+
+    <!-- Wiki Overview Grid -->
+    <h2 class="section-title">Handbuch & Themenbereiche</h2>
+
+    <div class="wiki-grid">
+      
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/About-the-hroot-project" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>01.</span> Einführung & Konzepte</h3>
+          <p>Überblick über das HROOT-System, Systemarchitektur, Datenschutzgrundsätze und grundlegende Begriffe der Probandenverwaltung.</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Docker-(precompiled)" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>02.</span> Docker-Installation</h3>
+          <p>Anleitung zum Betrieb mit vorkompilierten Docker-Containern, Multi-Instance-Setups und Nginx-Reverse-Proxy-Integration.</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Updating-an-existing-installation" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>03.</span> Updates & Migrationen</h3>
+          <p>In-App-Aktualisierungen, Versions-Updates, Custom-Fork-Workflows sowie Migration von Legacy-Installationen (v3) auf Docker (v4).</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Environment-Configuration" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>04.</span> Konfiguration & .env</h3>
+          <p>Übersicht aller Umgebungsvariablen, Datenbankverbindungen, Ports, Secrets und der Schutz des In-Browser-Setup-Assistenten (/setup).</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Pools-Management" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>05.</span> Probandenpools & Verwaltung</h3>
+          <p>Teilnehmerpools, demographische Filter, Dublettensuche, benutzerdefinierte Profilfelder und Rechteverwaltung.</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Managing-Experiments" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>06.</span> Experiment- & Session-Planung</h3>
+          <p>Erstellung von Labor- und Online-Experimenten, Timeslot-Verwaltung, automatische Einladungsquoten und Wartelisten.</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Entrance" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>07.</span> Einlass & Check-In</h3>
+          <p>QR-Code-gestützter Laboreinlass, digitaler Online-Warteraum (Lounge) und lückenlose Erfassung von Teilnahme und No-Shows.</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Sending-messages" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>08.</span> Benachrichtigungen & SMS</h3>
+          <p>E-Mail-Vorlagen, automatischer Erinnerungsversand, Push-Benachrichtigungen und SMS-Gateway-Konfiguration.</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Shibboleth-Integration" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>09.</span> Schnittstellen & SSO</h3>
+          <p>Anbindung an universitäres Single-Sign-On (Shibboleth / SAML), Kimai-Zeiterfassung und externe Umfrage-Tools.</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Finance" class="wiki-card" target="_blank">
+        <div>
+          <h3><span>10.</span> Finanzen & Abrechnung</h3>
+          <p>Dokumentation von Probandenauszahlungen, Budget- und Projekt-Zuordnung sowie Exportformate für die Universitätsverwaltung.</p>
+        </div>
+        <div class="card-footer">Kapitel öffnen &rarr;</div>
+      </a>
+
+    </div>
+  </main>
+
+  <footer>
+    <p>
+      &copy; WISO-Forschungslabor der Universität Hamburg &middot; 
+      <a href="https://uhh.de/wiso-hroot-info" target="_blank">Lizenzierung & Kontakt</a> &middot; 
+      <a href="https://github.com/wiso-forschungslabor/hroot" target="_blank">GitHub</a>
+    </p>
+  </footer>
+
   <script>
-    window.$docsify = {
-      name: '<img src="images/hroot_logo_rounded.svg" alt="HROOT Logo"><strong>HROOT Docs</strong>',
-      repo: 'https://github.com/wiso-forschungslabor/hroot',
-      homepage: 'Home.md',
-      loadSidebar: '_sidebar.md',
-      auto2top: true,
-      subMaxLevel: 2,
-      maxLevel: 3,
-      search: {
-        maxAge: 86400000,
-        paths: 'auto',
-        placeholder: 'Search wiki...',
-        noData: 'No results found',
-        depth: 3
-      },
-      copyCode: {
-        buttonText: 'Copy',
-        errorText: 'Error',
-        successText: 'Copied'
-      }
-    };
+    function copyInstallCmd() {
+      const code = document.getElementById('cmd').innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.querySelector('.btn-copy');
+        btn.innerText = 'Kopiert!';
+        setTimeout(() => btn.innerText = 'Befehl kopieren', 2000);
+      });
+    }
   </script>
-  <!-- Docsify v4 -->
-  <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
-  <!-- Search Plugin -->
-  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
-  <!-- Copy to Clipboard Plugin -->
-  <script src="//cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
-  <!-- Zoom Image Plugin -->
-  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
-  <!-- Prism Syntax Highlighting -->
-  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
-  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-ruby.min.js"></script>
-  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
-  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-sql.min.js"></script>
 </body>
 </html>
