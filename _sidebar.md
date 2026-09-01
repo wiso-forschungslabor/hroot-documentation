@@ -1,5 +1,8 @@
-* [Home](Home.md)
+<p align="center">
+  <img src="images/hroot_logo_rounded.svg" alt="HROOT - Hamburg Registration and Organization Online Tool" width="100%">
+</p>
 
+* [Home](Home.md)
 
 0. Introduction
    1. [About the hroot project](About-the-hroot-project.md)
