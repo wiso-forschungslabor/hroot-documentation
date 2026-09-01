@@ -32,10 +32,10 @@ NC='\033[0m' # No Color
 
 echo -e "${CYAN}${BOLD}"
 echo "=================================================================="
-echo "           🚀 HROOT Bootstrap Installer                         "
+echo "           HROOT Bootstrap Installer                             "
 echo "=================================================================="
 echo -e "${NC}"
-echo -e "${YELLOW}ℹ️  Authorization & Licensing Notice:${NC}"
+echo -e "${YELLOW}Notice: Authorization & Licensing Requirements${NC}"
 echo -e "An authorized access grant for the private HROOT repository is required for installation."
 echo -e "Software licenses and access information can be obtained at ${BOLD}https://uhh.de/wiso-hroot-info${NC}."
 echo ""
@@ -92,22 +92,22 @@ fi
 echo -e "\n${BOLD}4. Pre-Flight Check & Registry Authentication:${NC}"
 if command -v docker >/dev/null 2>&1; then
   if docker info >/dev/null 2>&1; then
-    echo -e "✓ Docker Engine is running and accessible (unprivileged)."
+    echo -e "-> Docker Engine is running and accessible (unprivileged)."
     if echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-      echo -e "✓ Successfully authenticated with ${GREEN}ghcr.io${NC}."
+      echo -e "-> Successfully authenticated with ${GREEN}ghcr.io${NC}."
     fi
   else
-    echo -e "${YELLOW}ℹ️  Docker is installed, but user '${USER}' cannot access Docker daemon without sudo.${NC}"
+    echo -e "${YELLOW}Notice: Docker is installed, but user '${USER}' cannot access Docker daemon without sudo.${NC}"
     echo -e "   Tip: To run HROOT completely unprivileged without sudo, ask your admin to run:"
     echo -e "   ${BOLD}sudo usermod -aG docker \$USER && newgrp docker${NC}"
     if command -v sudo >/dev/null 2>&1; then
       if echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-        echo -e "✓ Authenticated with ${GREEN}ghcr.io${NC} (via sudo fallback)."
+        echo -e "-> Authenticated with ${GREEN}ghcr.io${NC} (via sudo fallback)."
       fi
     fi
   fi
 else
-  echo -e "${YELLOW}ℹ️  Docker is not yet installed on this system.${NC}"
+  echo -e "${YELLOW}Notice: Docker is not yet installed on this system.${NC}"
   echo -e "   The installer will generate your configurations (.env, keys) now."
   echo -e "   To run HROOT later, your system administrator can install Docker via:"
   echo -e "   ${BOLD}sudo apt update && sudo apt install docker.io docker-compose-v2 -y && sudo usermod -aG docker \$USER${NC}"
@@ -121,7 +121,8 @@ echo -e "\n${BOLD}Fetching installer from ${CYAN}${TARGET_REPO}@${TARGET_BRANCH}
 TMP_INSTALLER=$(mktemp /tmp/hroot-installer-XXXXXX.sh)
 
 if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" "$INSTALLER_URL" -o "$TMP_INSTALLER" 2>/dev/null; then
-  echo -e "✓ Installer downloaded successfully.\n"
+  echo -e "-> Installer downloaded successfully.\n"
+
   chmod +x "$TMP_INSTALLER"
   
   # Export credentials to subshell
