@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,22 +8,25 @@
   
   <style>
     :root {
-      --primary: #004994;       /* Universitäts-/Forschungsblau */
-      --primary-dark: #003366;
-      --text: #1f2937;
-      --text-muted: #4b5563;
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --border: #e2e8f0;
-      --border-dark: #cbd5e1;
-      --code-bg: #0f172a;
-      --code-text: #38bdf8;
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --card-hover: #1c2128;
+      --border: #30363d;
+      --border-subtle: #21262d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --code-bg: #030712;
+      --code-text: #79c0ff;
+      --btn-primary: #1f6feb;
+      --btn-primary-hover: #388bfd;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       background-color: var(--bg);
       color: var(--text);
       line-height: 1.6;
@@ -31,83 +34,83 @@
       margin: 0;
     }
 
-    /* Top Bar / Header */
+    /* Header */
     header {
-      background: #ffffff;
+      background: #161b22;
       border-bottom: 1px solid var(--border);
-      padding: 32px 20px 28px 20px;
+      padding: 44px 20px 36px 20px;
     }
 
     .header-content {
-      max-width: 1040px;
+      max-width: 1080px;
       margin: 0 auto;
       display: flex;
       align-items: center;
-      gap: 24px;
+      gap: 32px;
     }
 
     .logo-container img {
-      width: 72px;
-      height: 72px;
+      width: 110px;
+      height: 110px;
       display: block;
     }
 
     .header-text h1 {
-      font-size: 26px;
+      font-size: 30px;
       font-weight: 700;
-      color: #0f172a;
-      letter-spacing: -0.01em;
-      margin-bottom: 4px;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
     }
 
     .header-text p {
-      font-size: 15px;
+      font-size: 16px;
       color: var(--text-muted);
     }
 
     /* Main Container */
     main {
-      max-width: 1040px;
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 32px 20px 60px 20px;
+      padding: 36px 20px 60px 20px;
     }
 
-    /* Action & Installation Box */
+    /* Installation & Quick Links Box */
     .hero-card {
       background: var(--card-bg);
-      border: 1px solid var(--border-dark);
-      border-radius: 8px;
-      padding: 28px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px 32px;
       margin-bottom: 40px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
 
     .hero-card h2 {
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 600;
-      color: #0f172a;
+      color: #ffffff;
       margin-bottom: 8px;
     }
 
     .hero-card .desc {
-      font-size: 14px;
+      font-size: 14.5px;
       color: var(--text-muted);
-      margin-bottom: 16px;
+      margin-bottom: 18px;
     }
 
     .installer-box {
       background: var(--code-bg);
-      border-radius: 6px;
-      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 20px;
+      gap: 16px;
+      margin-bottom: 22px;
     }
 
     .installer-box code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
       color: var(--code-text);
       font-size: 14px;
       overflow-x: auto;
@@ -115,11 +118,11 @@
     }
 
     .btn-copy {
-      background: var(--primary);
+      background: var(--btn-primary);
       color: #ffffff;
       border: none;
-      border-radius: 4px;
-      padding: 8px 14px;
+      border-radius: 6px;
+      padding: 8px 16px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -128,117 +131,137 @@
     }
 
     .btn-copy:hover {
-      background: var(--primary-dark);
+      background: var(--btn-primary-hover);
     }
 
     .quick-links {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
-      border-top: 1px solid var(--border);
-      padding-top: 18px;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 20px;
     }
 
     .btn-link {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 8px 14px;
-      border-radius: 4px;
+      padding: 8px 16px;
+      border-radius: 6px;
       font-size: 13.5px;
       font-weight: 500;
       text-decoration: none;
-      border: 1px solid var(--border-dark);
-      background: #ffffff;
-      color: #1e293b;
+      border: 1px solid var(--border);
+      background: #21262d;
+      color: var(--text);
       transition: all 0.15s;
     }
 
     .btn-link:hover {
-      background: #f1f5f9;
-      border-color: #94a3b8;
+      background: #30363d;
+      border-color: #8b949e;
+      color: #ffffff;
     }
 
     .btn-link.primary {
-      background: #f8fafc;
-      border-color: #cbd5e1;
-      font-weight: 600;
-      color: var(--primary);
+      border-color: #388bfd;
+      color: #58a6ff;
     }
 
-    /* Wiki Sections Grid */
+    /* Table of Contents Section */
     .section-title {
-      font-size: 20px;
+      font-size: 22px;
       font-weight: 600;
-      color: #0f172a;
-      margin-bottom: 20px;
-      padding-bottom: 8px;
+      color: #ffffff;
+      margin-bottom: 24px;
+      padding-bottom: 10px;
       border-bottom: 1px solid var(--border);
-    }
-
-    .wiki-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-      gap: 18px;
-    }
-
-    .wiki-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 20px;
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-
-    .wiki-card:hover {
-      border-color: var(--primary);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-
-    .wiki-card h3 {
-      font-size: 16px;
-      font-weight: 600;
-      color: #0f172a;
-      margin-bottom: 8px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: space-between;
     }
 
-    .wiki-card h3 span {
-      color: var(--primary);
+    .toc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
     }
 
-    .wiki-card p {
-      font-size: 13.5px;
-      color: var(--text-muted);
+    .toc-block {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 22px 24px;
+    }
+
+    .toc-block h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .toc-block h3 a {
+      color: #ffffff;
+      text-decoration: none;
+    }
+
+    .toc-block h3 a:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
+    .toc-block ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .toc-block li {
+      margin: 6px 0;
+      font-size: 14px;
       line-height: 1.5;
     }
 
-    .wiki-card .card-footer {
-      margin-top: 14px;
-      font-size: 12.5px;
-      font-weight: 600;
-      color: var(--primary);
+    .toc-block li a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .toc-block li a:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+    }
+
+    .toc-block li.sub-item {
+      padding-left: 16px;
+      font-size: 13.5px;
+      color: #6e7681;
+    }
+
+    .toc-block li.sub-item a {
+      color: #8b949e;
+    }
+
+    .toc-block li.sub-item a:hover {
+      color: var(--accent-hover);
     }
 
     /* Footer */
     footer {
-      background: #ffffff;
+      background: #161b22;
       border-top: 1px solid var(--border);
-      padding: 28px 20px;
+      padding: 32px 20px;
       text-align: center;
       font-size: 13.5px;
       color: var(--text-muted);
     }
 
     footer a {
-      color: var(--primary);
+      color: var(--accent);
       text-decoration: none;
     }
 
@@ -262,130 +285,195 @@
       </div>
       <div class="header-text">
         <h1>HROOT Documentation</h1>
-        <p>Hamburg Registration and Organization Online Tool &middot; WISO-Forschungslabor der Universität Hamburg</p>
+        <p>Hamburg Registration and Organization Online Tool &middot; WISO Research Lab, University of Hamburg</p>
       </div>
     </div>
   </header>
 
   <main>
-    <!-- One-Line Installer Box -->
+    <!-- One-Line Interactive Installer Box -->
     <div class="hero-card">
-      <h2>Installation & Schnellstart</h2>
+      <h2>🚀 Interactive One-Line Installation</h2>
       <p class="desc">
-        HROOT wird über vorkompilierte Docker-Container betrieben. Führe folgenden Einzeiler im Terminal aus, um die interaktive Installation zu starten:
+        HROOT runs on precompiled Docker containers. Execute this one-line command in your Linux, macOS, or WSL terminal to begin interactive installation:
       </p>
       
       <div class="installer-box">
         <code id="cmd">curl -fsSL https://raw.githubusercontent.com/wiso-forschungslabor/hroot-documentation/master/install.sh | bash</code>
-        <button class="btn-copy" onclick="copyInstallCmd()">Befehl kopieren</button>
+        <button class="btn-copy" onclick="copyInstallCmd()">Copy Command</button>
       </div>
 
       <div class="quick-links">
         <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki" class="btn-link primary" target="_blank">
-          📖 Vollständiges Wiki öffnen
+          📖 Full Documentation Wiki
         </a>
         <a href="https://uhh.de/wiso-hroot-info" class="btn-link" target="_blank">
-          ℹ️ Lizenzierung & Berechtigungen
+          ℹ️ Licensing & Information
         </a>
         <a href="https://github.com/wiso-forschungslabor/hroot" class="btn-link" target="_blank">
-          💻 Quellcode Repository (GitHub)
+          💻 Source Code Repository (GitHub)
         </a>
       </div>
     </div>
 
-    <!-- Wiki Overview Grid -->
-    <h2 class="section-title">Handbuch & Themenbereiche</h2>
+    <!-- Full Table of Contents (Matching Wiki Sidebar) -->
+    <h2 class="section-title">
+      <span>Documentation Table of Contents</span>
+    </h2>
 
-    <div class="wiki-grid">
+    <div class="toc-grid">
       
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/About-the-hroot-project" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>01.</span> Einführung & Konzepte</h3>
-          <p>Überblick über das HROOT-System, Systemarchitektur, Datenschutzgrundsätze und grundlegende Begriffe der Probandenverwaltung.</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 0. Introduction -->
+      <div class="toc-block">
+        <h3>0. Introduction</h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Home" target="_blank">Home</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/About-the-hroot-project" target="_blank">About the hroot project</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Features" target="_blank">Features</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Some-terms-and-concepts-in-hroot" target="_blank">Some terms and concepts in hroot</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Software-project-overview" target="_blank">Software project overview</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Docker-(precompiled)" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>02.</span> Docker-Installation</h3>
-          <p>Anleitung zum Betrieb mit vorkompilierten Docker-Containern, Multi-Instance-Setups und Nginx-Reverse-Proxy-Integration.</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 1. Installation -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Installation" target="_blank">1. Installation</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Docker-(precompiled)" target="_blank">1.1. Docker (precompiled)</a></li>
+          <li class="sub-item">&bull; <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Docker-Multi-Instance-Setup" target="_blank">Docker Multi-Instance Setup</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Docker-(self-compiled)" target="_blank">1.2. Docker (self-compiled)</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Manual-Deployment" target="_blank">1.3. Manual Deployment</a></li>
+          <li class="sub-item">&bull; <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Ruby-and-rbenv" target="_blank">Ruby and rbenv</a></li>
+          <li class="sub-item">&bull; <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/MySQL" target="_blank">MySQL</a></li>
+          <li class="sub-item">&bull; <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Git" target="_blank">Git</a></li>
+          <li class="sub-item">&bull; <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Production-server-with-Phusion-Passenger" target="_blank">Phusion Passenger</a></li>
+          <li class="sub-item">&bull; <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Cronjob-for-background-task" target="_blank">Cronjob background tasks</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Environment-Configuration" target="_blank">1.4. Environment Configuration</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Backup-and-Maintenance" target="_blank">1.5. Backup and Maintenance</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Starting-a-local-server-and-running-automated-tests" target="_blank">1.6. Local Testing & Automated Tests</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Basic-configuration" target="_blank">1.7. Basic configuration</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Language-configuration-and-timezone" target="_blank">1.8. Language & Timezone</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Custom-field-definitions" target="_blank">1.9. Custom field definitions</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Updating-an-existing-installation" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>03.</span> Updates & Migrationen</h3>
-          <p>In-App-Aktualisierungen, Versions-Updates, Custom-Fork-Workflows sowie Migration von Legacy-Installationen (v3) auf Docker (v4).</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 2. Updating & Migrations -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Updating-an-existing-installation" target="_blank">2. Updating an Existing Installation</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Updating-an-existing-installation" target="_blank">Updating via In-App Wizard & Webhook</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Migrating-from-Legacy-Installation-to-Docker" target="_blank">Migrating from Legacy Installation to Docker</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Upgrading-Bare-Metal-from-v3-to-v4" target="_blank">Upgrading Bare Metal from v3 to v4</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Environment-Configuration" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>04.</span> Konfiguration & .env</h3>
-          <p>Übersicht aller Umgebungsvariablen, Datenbankverbindungen, Ports, Secrets und der Schutz des In-Browser-Setup-Assistenten (/setup).</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 3. Overview -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Overview" target="_blank">3. Overview</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Roles:-Users,-Admins,-Experimenters" target="_blank">3.1. Roles: Users, Admins, Experimenters</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Experiments,-Sessions,-session-types" target="_blank">3.2. Experiments, Sessions, Session Types</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Pools-Management" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>05.</span> Probandenpools & Verwaltung</h3>
-          <p>Teilnehmerpools, demographische Filter, Dublettensuche, benutzerdefinierte Profilfelder und Rechteverwaltung.</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 4. Subject Pool & User Management -->
+      <div class="toc-block">
+        <h3>4. Subject Pool & User Management</h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Browsing-the-pool" target="_blank">4.1. Browsing the pool</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Exporting-data" target="_blank">4.2. Exporting data</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Adding-users" target="_blank">4.3. Adding users</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Deleting-users" target="_blank">4.4. Deleting users</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Finding-duplicate-users" target="_blank">4.5. Finding duplicate users</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/More-user-management" target="_blank">4.6. More user management</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Managing-Experiments" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>06.</span> Experiment- & Session-Planung</h3>
-          <p>Erstellung von Labor- und Online-Experimenten, Timeslot-Verwaltung, automatische Einladungsquoten und Wartelisten.</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 5. Experiment Management -->
+      <div class="toc-block">
+        <h3>5. Experiment Management</h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Managing-Experiments" target="_blank">5.1. Managing Experiments</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Adding-Sessions" target="_blank">5.2. Adding Sessions</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Assign-participants-from-the-pool" target="_blank">5.3. Assign participants from the pool</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Inviting-participants" target="_blank">5.4. Inviting participants</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Session-management" target="_blank">5.5. Session management</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Waiting-list" target="_blank">5.6. Waiting list</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Invitations-Scheduling-and-Digests" target="_blank">5.7. Invitations Scheduling and Digests</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Entrance" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>07.</span> Einlass & Check-In</h3>
-          <p>QR-Code-gestützter Laboreinlass, digitaler Online-Warteraum (Lounge) und lückenlose Erfassung von Teilnahme und No-Shows.</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 6. Entrance -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Entrance" target="_blank">6. Entrance & Admission</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/QR-Code-Admission" target="_blank">6.1. QR Code Admission</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Online-Waiting-Room" target="_blank">6.2. Online Waiting Room (Lounge)</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Online-Surveys-and-Completion-Links" target="_blank">6.3. Online Surveys & Completion Links</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Sending-messages" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>08.</span> Benachrichtigungen & SMS</h3>
-          <p>E-Mail-Vorlagen, automatischer Erinnerungsversand, Push-Benachrichtigungen und SMS-Gateway-Konfiguration.</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 7. Calendar -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Calendar" target="_blank">7. Calendar</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Calendar" target="_blank">Laboratory room calendar & session overview</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Shibboleth-Integration" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>09.</span> Schnittstellen & SSO</h3>
-          <p>Anbindung an universitäres Single-Sign-On (Shibboleth / SAML), Kimai-Zeiterfassung und externe Umfrage-Tools.</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 8. Messaging -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Sending-messages" target="_blank">8. Sending Messages</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Invitation-emails" target="_blank">8.1. Invitation emails</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Confirmation-emails" target="_blank">8.2. Confirmation emails</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Session-reminder-emails" target="_blank">8.3. Session reminder emails</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Default-locale-and-date-formats" target="_blank">8.4. Default locale & date formats</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/SMS-and-Push-Notifications" target="_blank">8.5. SMS & Push Notifications</a></li>
+        </ul>
+      </div>
 
-      <a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Finance" class="wiki-card" target="_blank">
-        <div>
-          <h3><span>10.</span> Finanzen & Abrechnung</h3>
-          <p>Dokumentation von Probandenauszahlungen, Budget- und Projekt-Zuordnung sowie Exportformate für die Universitätsverwaltung.</p>
-        </div>
-        <div class="card-footer">Kapitel öffnen &rarr;</div>
-      </a>
+      <!-- 9. Settings -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Settings" target="_blank">9. Settings & Integrations</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Shibboleth-Integration" target="_blank">9.1. Shibboleth / SAML SSO Integration</a></li>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Kimai-Integration" target="_blank">9.2. Kimai Time-Tracking Integration</a></li>
+        </ul>
+      </div>
+
+      <!-- 10. Staff Management -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Staff-Management" target="_blank">10. Staff Management</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Staff-Management" target="_blank">Staff accounts, experimenter permissions & assistant roles</a></li>
+        </ul>
+      </div>
+
+      <!-- 11. Finance -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Finance" target="_blank">11. Finance & Accounting</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Finance" target="_blank">Participant payouts, budget allocations & expense exports</a></li>
+        </ul>
+      </div>
+
+      <!-- 12. Pools Management -->
+      <div class="toc-block">
+        <h3><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Pools-Management" target="_blank">12. Pools Management</a></h3>
+        <ul>
+          <li><a href="https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Pools-Management" target="_blank">Cohort configuration, pool assignment rules & multi-pool filters</a></li>
+        </ul>
+      </div>
 
     </div>
   </main>
 
   <footer>
     <p>
-      &copy; WISO-Forschungslabor der Universität Hamburg &middot; 
-      <a href="https://uhh.de/wiso-hroot-info" target="_blank">Lizenzierung & Kontakt</a> &middot; 
-      <a href="https://github.com/wiso-forschungslabor/hroot" target="_blank">GitHub</a>
+      &copy; WISO Research Lab, University of Hamburg &middot; 
+      <a href="https://uhh.de/wiso-hroot-info" target="_blank">Licensing & Information</a> &middot; 
+      <a href="https://github.com/wiso-forschungslabor/hroot" target="_blank">GitHub Repository</a>
     </p>
   </footer>
 
@@ -394,8 +482,8 @@
       const code = document.getElementById('cmd').innerText;
       navigator.clipboard.writeText(code).then(() => {
         const btn = document.querySelector('.btn-copy');
-        btn.innerText = 'Kopiert!';
-        setTimeout(() => btn.innerText = 'Befehl kopieren', 2000);
+        btn.innerText = 'Copied!';
+        setTimeout(() => btn.innerText = 'Copy Command', 2000);
       });
     }
   </script>
