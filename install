@@ -175,30 +175,43 @@ else
 fi
 
 
-# 5. Fetch and execute the full installer from the private repository
-INSTALLER_URL="https://raw.githubusercontent.com/${TARGET_REPO}/${TARGET_BRANCH}/bin/install"
-echo -e "\n${BOLD}Fetching installer from ${CYAN}${TARGET_REPO}@${TARGET_BRANCH}${NC}..."
-
+# 4. Fetch and execute the full installer from the repository
 TMP_INSTALLER=$(mktemp /tmp/hroot-installer-XXXXXX.sh)
+DOWNLOAD_SUCCESS=false
 
-if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" "$INSTALLER_URL" -o "$TMP_INSTALLER" 2>/dev/null; then
-  echo -e "-> Installer downloaded successfully.\n"
+while [ "$DOWNLOAD_SUCCESS" = false ]; do
+  INSTALLER_URL="https://raw.githubusercontent.com/${TARGET_REPO}/${TARGET_BRANCH}/bin/install"
+  echo -e "\n${BOLD}Fetching installer from ${CYAN}${TARGET_REPO}@${TARGET_BRANCH}${NC}..."
 
-  chmod +x "$TMP_INSTALLER"
-  
-  # Export credentials to subshell
-  export GITHUB_USER="$GITHUB_USER"
-  export GITHUB_TOKEN="$GITHUB_TOKEN"
-  export HROOT_REPO="$TARGET_REPO"
-  export HROOT_BRANCH="$TARGET_BRANCH"
-  export HROOT_TAG="$TARGET_TAG"
-  
-  bash "$TMP_INSTALLER"
-  rm -f "$TMP_INSTALLER"
-else
+  if curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" "$INSTALLER_URL" -o "$TMP_INSTALLER" 2>/dev/null; then
+    DOWNLOAD_SUCCESS=true
+    echo -e "-> Installer downloaded successfully.\n"
+  else
+    echo -e "${YELLOW}Notice: 'bin/install' not found at ${TARGET_REPO}@${TARGET_BRANCH}.${NC}"
+    echo "If your code or installer is located on a specific branch or release tag (e.g. hamburg_development_2502 or v4.0-beta5):"
+    prompt_read -r -p "Enter alternative branch or release tag (or 'q' to abort): " ALT_REF
+    if [ -z "$ALT_REF" ] || [ "$ALT_REF" = "q" ] || [ "$ALT_REF" = "exit" ]; then
+      echo -e "\n${RED}Installation aborted: Installer script could not be downloaded.${NC}"
+      rm -f "$TMP_INSTALLER"
+      exit 1
+    fi
+    TARGET_BRANCH="$ALT_REF"
+    if [ "$ALT_REF" = "master" ] || [ "$ALT_REF" = "main" ]; then
+      TARGET_TAG="latest"
+    else
+      TARGET_TAG="$ALT_REF"
+    fi
+  fi
+done
 
-  echo -e "${RED}Error: Failed to download installer from ${INSTALLER_URL}.${NC}"
-  echo "Please verify that your GitHub account has Read access to '${TARGET_REPO}' and your token has the 'repo' scope."
-  rm -f "$TMP_INSTALLER"
-  exit 1
-fi
+chmod +x "$TMP_INSTALLER"
+
+# Export credentials to subshell
+export GITHUB_USER="$GITHUB_USER"
+export GITHUB_TOKEN="$GITHUB_TOKEN"
+export HROOT_REPO="$TARGET_REPO"
+export HROOT_BRANCH="$TARGET_BRANCH"
+export HROOT_TAG="$TARGET_TAG"
+
+bash "$TMP_INSTALLER"
+rm -f "$TMP_INSTALLER"
