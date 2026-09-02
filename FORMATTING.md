@@ -4,7 +4,7 @@ The following are guidelines for how the wiki should be formatted.
 
 ## Contents
 
-All pages should be added At a suitable position in the sidebar to the right of the page.
+All pages should be added to a suitable position in the sidebar at the right of the page.
 
 ## Pages
 
@@ -18,4 +18,4 @@ If there are multiple subsections on a page, number them and add a horizontal li
 
 Technical information are to be highlighted as code, like so: `Text`
 
-When pointing to a page in hroot, make it bold and add an arrow between each to levels. For example **Site Settings -> Participation Pools**
+When pointing to a page in HROOT, make it bold and add an arrow between each to levels. For example: **Site Settings -> Participation Pools**
