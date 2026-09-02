@@ -84,6 +84,7 @@ echo ""
 # ==============================================================================
 echo -e "${BOLD}1. Pre-Flight System & Docker Check:${NC}"
 DOCKER_CMD="docker compose"
+DOCKER_BASE="docker"
 CAN_START=false
 
 if command -v docker >/dev/null 2>&1; then
@@ -98,15 +99,17 @@ if command -v docker >/dev/null 2>&1; then
   if docker info >/dev/null 2>&1; then
     echo -e "-> Docker Engine: ${GREEN}Running and accessible (unprivileged)${NC}"
   else
-    echo -e "${YELLOW}Notice: Docker is installed, but user '${USER}' cannot access Docker daemon without sudo.${NC}"
+    echo -e "${YELLOW}Notice: Docker is installed, but user '${USER}' cannot access Docker daemon without sudo in the current session.${NC}"
     if has_sudo_access; then
       prompt_read -r -p "Add '${USER}' to docker group with sudo now? [Y/n]: " ADD_GRP
       ADD_GRP="${ADD_GRP:-Y}"
       if [[ "$ADD_GRP" =~ ^[Yy]$ ]]; then
         if sudo usermod -aG docker "$USER" 2>/dev/null; then
-          echo -e "-> Added '${USER}' to docker group."
+          echo -e "-> Added '${USER}' to docker group (takes effect on next login; using sudo for this session)."
         fi
       fi
+      DOCKER_CMD="sudo $DOCKER_CMD"
+      DOCKER_BASE="sudo docker"
     else
       echo -e "   Tip: To run HROOT unprivileged, ask your administrator to run:"
       echo -e "   ${BOLD}sudo usermod -aG docker ${USER} && newgrp docker${NC}"
@@ -114,24 +117,63 @@ if command -v docker >/dev/null 2>&1; then
   fi
 else
   echo -e "${YELLOW}Notice: Docker is not installed on this system.${NC}"
-  if command -v apt-get >/dev/null 2>&1 && has_sudo_access; then
+  HAS_PKG_MGR=false
+  PKG_MGR_NAME=""
+  if command -v apt-get >/dev/null 2>&1; then
+    HAS_PKG_MGR=true
+    PKG_MGR_NAME="apt (Debian/Ubuntu)"
+  elif command -v dnf >/dev/null 2>&1; then
+    HAS_PKG_MGR=true
+    PKG_MGR_NAME="dnf (RHEL/AlmaLinux/Rocky/Fedora)"
+  elif command -v yum >/dev/null 2>&1; then
+    HAS_PKG_MGR=true
+    PKG_MGR_NAME="yum (CentOS/RHEL)"
+  elif command -v pacman >/dev/null 2>&1; then
+    HAS_PKG_MGR=true
+    PKG_MGR_NAME="pacman (Arch Linux)"
+  fi
+
+  if [ "$HAS_PKG_MGR" = true ] && has_sudo_access; then
     echo -e "\nOptions:"
-    echo "1) Install Docker & Compose automatically now (via apt & sudo) [Default]"
+    echo "1) Install Docker & Compose automatically now (via ${PKG_MGR_NAME} & sudo) [Default]"
     echo "2) Continue anyway (generate configuration files only, install Docker later)"
     echo "3) Abort installation"
     prompt_read -r -p "Select option [1/2/3]: " DOCKER_CHOICE
     DOCKER_CHOICE="${DOCKER_CHOICE:-1}"
 
     if [ "$DOCKER_CHOICE" = "1" ]; then
-      echo -e "\nInstalling docker.io and docker-compose-v2..."
-      if sudo apt-get update -y && sudo apt-get install -y docker.io docker-compose-v2; then
+      echo -e "\nInstalling Docker and Docker Compose plugin..."
+      INSTALL_OK=false
+      if command -v apt-get >/dev/null 2>&1; then
+        if sudo apt-get update -y && sudo apt-get install -y docker.io docker-compose-v2; then
+          INSTALL_OK=true
+        fi
+      elif command -v dnf >/dev/null 2>&1; then
+        if sudo dnf install -y docker docker-compose-plugin 2>/dev/null || sudo dnf install -y docker-ce docker-compose-plugin; then
+          sudo systemctl enable --now docker 2>/dev/null || true
+          INSTALL_OK=true
+        fi
+      elif command -v yum >/dev/null 2>&1; then
+        if sudo yum install -y docker docker-compose-plugin 2>/dev/null; then
+          sudo systemctl enable --now docker 2>/dev/null || true
+          INSTALL_OK=true
+        fi
+      elif command -v pacman >/dev/null 2>&1; then
+        if sudo pacman -Sy --noconfirm docker docker-compose; then
+          sudo systemctl enable --now docker 2>/dev/null || true
+          INSTALL_OK=true
+        fi
+      fi
+
+      if [ "$INSTALL_OK" = true ]; then
         sudo usermod -aG docker "$USER" 2>/dev/null || true
         echo -e "${GREEN}-> Docker installed successfully.${NC}"
         CAN_START=true
-        DOCKER_CMD="docker compose"
+        DOCKER_CMD="sudo docker compose"
+        DOCKER_BASE="sudo docker"
       else
-        echo -e "${RED}Error: Package installation failed.${NC}"
-        echo -e "Ask your administrator to install Docker: ${BOLD}sudo apt update && sudo apt install -y docker.io docker-compose-v2 && sudo usermod -aG docker ${USER}${NC}"
+        echo -e "${RED}Error: Automated package installation encountered an issue.${NC}"
+        echo -e "Please ask your system administrator to install Docker & Docker Compose v2."
       fi
     elif [ "$DOCKER_CHOICE" = "3" ]; then
       echo -e "\nInstallation aborted. Please install Docker and restart the installer."
@@ -140,9 +182,10 @@ else
       echo -e "\nContinuing in configuration-only mode..."
     fi
   else
-    echo -e "   Notice: User '${USER}' does not have sudo privileges to install packages."
-    echo -e "   Please ask your system administrator to install Docker:"
-    echo -e "   ${BOLD}sudo apt update && sudo apt install -y docker.io docker-compose-v2 && sudo usermod -aG docker ${USER}${NC}\n"
+    echo -e "   Notice: Docker is not installed and automated privilege is unavailable."
+    echo -e "   Please ask your system administrator to install Docker Engine and Docker Compose v2."
+    echo -e "   Ubuntu/Debian: ${BOLD}sudo apt update && sudo apt install -y docker.io docker-compose-v2 && sudo usermod -aG docker ${USER}${NC}"
+    echo -e "   RHEL/AlmaLinux: ${BOLD}sudo dnf install -y docker docker-compose-plugin && sudo usermod -aG docker ${USER}${NC}\n"
     prompt_read -r -p "Do you want to continue generating configuration files only? [y/N]: " CONT_CONF
     CONT_CONF="${CONT_CONF:-N}"
     if [[ ! "$CONT_CONF" =~ ^[Yy]$ ]]; then
@@ -176,7 +219,7 @@ if [ -z "$GITHUB_USER" ] || [ -z "$GITHUB_TOKEN" ]; then
 fi
 
 if command -v docker >/dev/null 2>&1; then
-  if echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+  if echo "$GITHUB_TOKEN" | $DOCKER_BASE login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
     echo -e "-> Successfully authenticated with ${GREEN}ghcr.io${NC}."
   elif command -v sudo >/dev/null 2>&1; then
     if echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
