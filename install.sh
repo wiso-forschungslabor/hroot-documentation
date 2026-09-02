@@ -16,6 +16,8 @@ prompt_read() {
     read "$@"
   elif [ -r /dev/tty ]; then
     read "$@" < /dev/tty
+  elif [ -c /dev/tty ]; then
+    read "$@" < /dev/tty
   else
     read "$@"
   fi
@@ -39,16 +41,91 @@ echo -e "${YELLOW}Notice: Authorization & Licensing Requirements${NC}"
 echo -e "An authorized access grant for the private HROOT repository is required for installation."
 echo -e "Software licenses and access information can be obtained at ${BOLD}https://uhh.de/wiso-hroot-info${NC}."
 echo ""
-echo "Please provide your authorized GitHub credentials to proceed."
 echo "------------------------------------------------------------------"
 echo ""
 
-# 1. GitHub Username
+# Helper to verify sudo access without failing
+has_sudo_access() {
+  if [ "$(id -u)" -eq 0 ]; then
+    return 0
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    if sudo -v 2>/dev/null; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# 1. Pre-Flight System & Docker Check
+echo -e "${BOLD}1. Pre-Flight System & Docker Check:${NC}"
+if command -v docker >/dev/null 2>&1; then
+  if docker info >/dev/null 2>&1; then
+    echo -e "-> Docker Engine: ${GREEN}Running and accessible (unprivileged)${NC}"
+  else
+    echo -e "${YELLOW}Notice: Docker is installed, but user '${USER}' cannot access Docker daemon without sudo.${NC}"
+    if has_sudo_access; then
+      prompt_read -r -p "Add '${USER}' to docker group with sudo now? [Y/n]: " ADD_GRP
+      ADD_GRP="${ADD_GRP:-Y}"
+      if [[ "$ADD_GRP" =~ ^[Yy]$ ]]; then
+        if sudo usermod -aG docker "$USER" 2>/dev/null; then
+          echo -e "-> Added '${USER}' to docker group."
+        fi
+      fi
+    else
+      echo -e "   Tip: To run HROOT unprivileged, ask your administrator to run:"
+      echo -e "   ${BOLD}sudo usermod -aG docker ${USER} && newgrp docker${NC}"
+    fi
+  fi
+else
+  echo -e "${YELLOW}Notice: Docker is not installed on this system.${NC}"
+  if command -v apt-get >/dev/null 2>&1 && has_sudo_access; then
+    echo -e "\nOptions:"
+    echo "1) Install Docker & Compose automatically now (via apt & sudo) [Default]"
+    echo "2) Continue anyway (generate configuration files only, install Docker later)"
+    echo "3) Abort installation"
+    prompt_read -r -p "Select option [1/2/3]: " DOCKER_CHOICE
+    DOCKER_CHOICE="${DOCKER_CHOICE:-1}"
+
+    if [ "$DOCKER_CHOICE" = "1" ]; then
+      echo -e "\nInstalling docker.io and docker-compose-v2..."
+      if sudo apt-get update -y && sudo apt-get install -y docker.io docker-compose-v2; then
+        sudo usermod -aG docker "$USER" 2>/dev/null || true
+        echo -e "${GREEN}-> Docker installed successfully.${NC}"
+      else
+        echo -e "${RED}Error: Package installation failed.${NC}"
+        echo -e "Ask your administrator to install Docker: ${BOLD}sudo apt update && sudo apt install -y docker.io docker-compose-v2 && sudo usermod -aG docker ${USER}${NC}"
+      fi
+    elif [ "$DOCKER_CHOICE" = "3" ]; then
+      echo -e "\nInstallation aborted. Please install Docker and restart the installer."
+      exit 0
+    else
+      echo -e "\nContinuing in configuration-only mode..."
+    fi
+  else
+    echo -e "   Notice: User '${USER}' does not have sudo privileges to install packages."
+    echo -e "   Please ask your system administrator to install Docker:"
+    echo -e "   ${BOLD}sudo apt update && sudo apt install -y docker.io docker-compose-v2 && sudo usermod -aG docker ${USER}${NC}\n"
+    prompt_read -r -p "Do you want to continue generating configuration files only? [y/N]: " CONT_CONF
+    CONT_CONF="${CONT_CONF:-N}"
+    if [[ ! "$CONT_CONF" =~ ^[Yy]$ ]]; then
+      echo -e "\nInstallation aborted."
+      exit 0
+    fi
+  fi
+fi
+echo ""
+
+# 2. GitHub Authentication
+echo -e "${BOLD}2. GitHub Authorization Credentials:${NC}"
+echo "Please provide your authorized GitHub credentials to proceed."
+
+# GitHub Username
 if [ -z "$GITHUB_USER" ]; then
   prompt_read -r -p "GitHub Username: " GITHUB_USER
 fi
 
-# 2. GitHub Personal Access Token (PAT)
+# GitHub Personal Access Token (PAT)
 if [ -z "$GITHUB_TOKEN" ]; then
   echo -e "\nEnter your GitHub Personal Access Token (classic with 'repo' & 'read:packages' scopes):"
   prompt_read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
@@ -60,11 +137,22 @@ if [ -z "$GITHUB_USER" ] || [ -z "$GITHUB_TOKEN" ]; then
   exit 1
 fi
 
+# Container Registry Authentication
+if command -v docker >/dev/null 2>&1; then
+  if echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+    echo -e "-> Successfully authenticated with ${GREEN}ghcr.io${NC}."
+  elif command -v sudo >/dev/null 2>&1; then
+    if echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+      echo -e "-> Authenticated with ${GREEN}ghcr.io${NC} (via sudo fallback)."
+    fi
+  fi
+fi
+
 # 3. Repository Selection
 DEFAULT_REPO="wiso-forschungslabor/hroot"
 DEFAULT_BRANCH="master"
 
-echo -e "\n${BOLD}Target Repository:${NC}"
+echo -e "\n${BOLD}3. Target Repository:${NC}"
 echo "1) Official Upstream (${DEFAULT_REPO}) [Default]"
 echo "2) Custom GitHub Fork"
 prompt_read -r -p "Select repository [1/2]: " REPO_CHOICE
@@ -75,7 +163,7 @@ if [ "$REPO_CHOICE" = "2" ]; then
   prompt_read -r -p "Enter branch or release tag (Default: master): " TARGET_REF
   TARGET_REF="${TARGET_REF:-master}"
   TARGET_BRANCH="$TARGET_REF"
-  if [ "$TARGET_REF" = "master" ]; then
+  if [ "$TARGET_REF" = "master" ] || [ "$TARGET_REF" = "main" ]; then
     TARGET_TAG="latest"
   else
     TARGET_TAG="$TARGET_REF"
@@ -84,33 +172,6 @@ else
   TARGET_REPO="$DEFAULT_REPO"
   TARGET_BRANCH="master"
   TARGET_TAG="latest"
-fi
-
-
-
-# 4. Pre-Flight System Check & Container Registry Authentication
-echo -e "\n${BOLD}4. Pre-Flight Check & Registry Authentication:${NC}"
-if command -v docker >/dev/null 2>&1; then
-  if docker info >/dev/null 2>&1; then
-    echo -e "-> Docker Engine is running and accessible (unprivileged)."
-    if echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-      echo -e "-> Successfully authenticated with ${GREEN}ghcr.io${NC}."
-    fi
-  else
-    echo -e "${YELLOW}Notice: Docker is installed, but user '${USER}' cannot access Docker daemon without sudo.${NC}"
-    echo -e "   Tip: To run HROOT completely unprivileged without sudo, ask your admin to run:"
-    echo -e "   ${BOLD}sudo usermod -aG docker \$USER && newgrp docker${NC}"
-    if command -v sudo >/dev/null 2>&1; then
-      if echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-        echo -e "-> Authenticated with ${GREEN}ghcr.io${NC} (via sudo fallback)."
-      fi
-    fi
-  fi
-else
-  echo -e "${YELLOW}Notice: Docker is not yet installed on this system.${NC}"
-  echo -e "   The installer will generate your configurations (.env, keys) now."
-  echo -e "   To run HROOT later, your system administrator can install Docker via:"
-  echo -e "   ${BOLD}sudo apt update && sudo apt install docker.io docker-compose-v2 -y && sudo usermod -aG docker \$USER${NC}"
 fi
 
 
