@@ -586,6 +586,19 @@ services:
       sms-gateway:
         condition: service_started
 
+  sms-dashboard:
+    image: ghcr.io/android-sms-gateway/web-dashboard:latest
+    profiles: ["sms"]
+    restart: unless-stopped
+    environment:
+      HTTP__ADDRESS: 0.0.0.0:3000
+      GATEWAY__URL: http://sms-gateway:3000/api/3rdparty/v1
+    ports:
+      - "3002:3000"
+    depends_on:
+      sms-gateway:
+        condition: service_started
+
   proxy:
     image: nginxproxy/nginx-proxy
     container_name: nginx-proxy
@@ -818,6 +831,32 @@ location /sms-gateway/ {
 location = /sms-gateway {
     return 301 $scheme://$http_host/sms-gateway/;
 }
+
+# Proxy routing for SMS Gateway Web Dashboard
+location /sms-dashboard/ {
+    proxy_pass http://sms-dashboard:3000/;
+    proxy_http_version 1.1;
+
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location = /sms-dashboard {
+    return 301 $scheme://$http_host/sms-dashboard/;
+}
+
+location /_app/ {
+    proxy_pass http://sms-dashboard:3000/_app/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
 EOFNGINX
   fi
 fi
@@ -828,7 +867,7 @@ database:
   host: db
   port: 3306
   user: hroot
-  password: hrootpassword
+  password: ${DATABASE_PASSWORD:-hrootpassword}
   database: sms_gateway
   timezone: UTC
 
@@ -900,6 +939,8 @@ SMS_SEND_MODE=api
 SMS_GATEWAY_DOMAIN=${SMS_GATEWAY_DOMAIN}
 SMS_GATEWAY_API_URL=${SMS_GATEWAY_API_URL}
 SMS_GATEWAY_PRIVATE_TOKEN=${SMS_PRIVATE_TOKEN}
+SMS_GATEWAY_API_USERNAME=
+SMS_GATEWAY_API_PASSWORD=
 
 EOF
 
