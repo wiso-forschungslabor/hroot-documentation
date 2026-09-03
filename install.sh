@@ -233,7 +233,11 @@ echo ""
 # ==============================================================================
 # 3. Installation Directory
 # ==============================================================================
-DEFAULT_DIR="$(pwd)/hroot"
+if [ -f "Gemfile" ] && [ -f "docker/Dockerfile" ]; then
+  DEFAULT_DIR="$(pwd)"
+else
+  DEFAULT_DIR="$(pwd)/hroot"
+fi
 echo -e "${BOLD}3. Installation Directory:${NC}"
 echo -e "Where should HROOT be installed? (Default: ${CYAN}${DEFAULT_DIR}${NC})"
 prompt_read -r -p "Target folder: " INPUT_DIR
@@ -276,12 +280,18 @@ echo -e "-> Using Docker Image: ${GREEN}${HROOT_IMAGE}${NC}\n"
 
 
 # ==============================================================================
-# 5. Network & Domain Configuration
+# 5. Network, Domain & SSL Configuration
 # ==============================================================================
 echo -e "${BOLD}5. Network & Domain Configuration:${NC}"
 echo "Enter your target domain (e.g. hroot.example.org or localhost:3000):"
 prompt_read -r -p "Domain (Default: localhost:3000): " INPUT_DOMAIN
 APP_DOMAIN="${INPUT_DOMAIN:-localhost:3000}"
+
+ENABLE_SSL=false
+FORCE_SSL=false
+PROXY_MODE="none"
+LETSENCRYPT_EMAIL=""
+CONTACT_EMAIL=""
 
 if [[ "$APP_DOMAIN" == *"localhost"* ]] || [[ "$APP_DOMAIN" == *"127.0.0.1"* ]]; then
   APP_PROTOCOL="http"
@@ -290,6 +300,71 @@ if [[ "$APP_DOMAIN" == *"localhost"* ]] || [[ "$APP_DOMAIN" == *"127.0.0.1"* ]];
 else
   APP_PROTOCOL="https"
   APP_PORT="3000"
+
+  echo -e "\n${BOLD}Reverse Proxy & SSL Architecture:${NC}"
+  echo "1) Standard: Built-in NGINX Proxy + Let's Encrypt SSL (Ports 80 & 443) [Default]"
+  echo "2) Shared Proxy: Connect to central 'proxy-network' (Multi-Instance setup)"
+  echo "3) Standalone / Host Proxy: Expose Port 3000 directly (use existing host Nginx/Apache)"
+  prompt_read -r -p "Select architecture [1/2/3]: " PROXY_CHOICE
+  PROXY_CHOICE="${PROXY_CHOICE:-1}"
+
+  if [ "$PROXY_CHOICE" = "1" ]; then
+    PROXY_MODE="builtin"
+    ENABLE_SSL=true
+    FORCE_SSL=true
+
+    # Check port availability for 80 and 443
+    PORT_CONFLICT=false
+    if command -v ss >/dev/null 2>&1; then
+      if ss -tuln 2>/dev/null | grep -E ':(80|443) ' >/dev/null 2>&1; then
+        PORT_CONFLICT=true
+      fi
+    elif command -v netstat >/dev/null 2>&1; then
+      if netstat -tuln 2>/dev/null | grep -E ':(80|443) ' >/dev/null 2>&1; then
+        PORT_CONFLICT=true
+      fi
+    elif command -v lsof >/dev/null 2>&1; then
+      if lsof -i :80 -i :443 >/dev/null 2>&1; then
+        PORT_CONFLICT=true
+      fi
+    fi
+
+    if [ "$PORT_CONFLICT" = true ]; then
+      echo -e "${YELLOW}Warning: Port 80 and/or 443 appear to be already in use on this host.${NC}"
+      echo "If another webserver (e.g. Apache/Nginx) is running, the built-in proxy cannot bind to 80/443."
+      prompt_read -r -p "Continue with built-in proxy anyway? [y/N]: " CONT_PROXY
+      CONT_PROXY="${CONT_PROXY:-N}"
+      if [[ ! "$CONT_PROXY" =~ ^[Yy]$ ]]; then
+        PROXY_MODE="none"
+        ENABLE_SSL=false
+        FORCE_SSL=false
+        APP_PROTOCOL="http"
+        echo -e "-> Switched to Standalone mode (Port 3000).\n"
+      fi
+    fi
+
+    if [ "$ENABLE_SSL" = true ]; then
+      echo -e "\nEnter administrator email for Let's Encrypt certificate renewal notices:"
+      prompt_read -r -p "Let's Encrypt Email: " LETSENCRYPT_EMAIL
+      CONTACT_EMAIL="${LETSENCRYPT_EMAIL}"
+    fi
+  elif [ "$PROXY_CHOICE" = "2" ]; then
+    PROXY_MODE="shared"
+    ENABLE_SSL=true
+    FORCE_SSL=true
+    echo -e "\nEnter administrator email for Let's Encrypt certificate renewal notices:"
+    prompt_read -r -p "Let's Encrypt Email: " LETSENCRYPT_EMAIL
+    CONTACT_EMAIL="${LETSENCRYPT_EMAIL}"
+    # Ensure proxy-network exists in docker
+    if command -v docker >/dev/null 2>&1; then
+      $DOCKER_BASE network create proxy-network 2>/dev/null || true
+    fi
+  else
+    PROXY_MODE="none"
+    ENABLE_SSL=false
+    FORCE_SSL=false
+    APP_PROTOCOL="http"
+  fi
 fi
 echo -e "-> Application URL: ${GREEN}${APP_PROTOCOL}://${APP_DOMAIN}${NC}\n"
 
@@ -347,7 +422,183 @@ echo -e "-> Setup Token set: ${GREEN}${SETUP_TOKEN}${NC}\n"
 echo -e "${BOLD}8. Generating Orchestration Files & Security Keys...${NC}"
 
 if [ ! -f "docker-compose.yml" ]; then
-  cat <<'EOFCOMPOSE' > docker-compose.yml
+  if [ "$PROXY_MODE" = "builtin" ]; then
+    cat <<'EOFCOMPOSE' > docker-compose.yml
+services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/mysql:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DATABASE_NAME:-hroot_production}
+      MYSQL_USER: ${DATABASE_USERNAME:-hroot}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+    ports:
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    command: ./bin/rails server -b 0.0.0.0
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/rails/public/uploads
+    environment:
+      RAILS_ENV: ${RAILS_ENV:-production}
+      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
+      DATABASE_HOST: ${DATABASE_HOST:-db}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-hroot}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE_NAME: ${DATABASE_NAME:-hroot_production}
+      VIRTUAL_HOST: ${APP_DOMAIN}
+      VIRTUAL_PORT: 3000
+      LETSENCRYPT_HOST: ${APP_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-${CONTACT_EMAIL}}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  cron:
+    image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    command: ./docker/cron-entrypoint.sh
+    user: root
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/rails/public/uploads
+    environment:
+      RAILS_ENV: ${RAILS_ENV:-production}
+      DATABASE_HOST: ${DATABASE_HOST:-db}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-hroot}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE_NAME: ${DATABASE_NAME:-hroot_production}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  proxy:
+    image: nginxproxy/nginx-proxy
+    container_name: nginx-proxy
+    restart: always
+    ports:
+      - "${PROXY_HTTP_PORT:-80}:80"
+      - "${PROXY_HTTPS_PORT:-443}:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - certs:/etc/nginx/certs
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+    depends_on:
+      - web
+
+  acme:
+    image: nginxproxy/acme-companion
+    container_name: acme-companion
+    restart: always
+    environment:
+      NGINX_PROXY_CONTAINER: nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - certs:/etc/nginx/certs
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - acme:/etc/acme.sh
+    depends_on:
+      - proxy
+
+volumes:
+  db_data:
+  certs:
+  vhost:
+  html:
+  acme:
+EOFCOMPOSE
+  elif [ "$PROXY_MODE" = "shared" ]; then
+    cat <<'EOFCOMPOSE' > docker-compose.yml
+services:
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/mysql:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DATABASE_NAME:-hroot_production}
+      MYSQL_USER: ${DATABASE_USERNAME:-hroot}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+    ports:
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    command: ./bin/rails server -b 0.0.0.0
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/rails/public/uploads
+    environment:
+      RAILS_ENV: ${RAILS_ENV:-production}
+      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
+      DATABASE_HOST: ${DATABASE_HOST:-db}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-hroot}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE_NAME: ${DATABASE_NAME:-hroot_production}
+      VIRTUAL_HOST: ${APP_DOMAIN}
+      VIRTUAL_PORT: 3000
+      LETSENCRYPT_HOST: ${APP_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-${CONTACT_EMAIL}}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    networks:
+      - proxy-network
+      - default
+    depends_on:
+      db:
+        condition: service_healthy
+
+  cron:
+    image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    command: ./docker/cron-entrypoint.sh
+    user: root
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/rails/public/uploads
+    environment:
+      RAILS_ENV: ${RAILS_ENV:-production}
+      DATABASE_HOST: ${DATABASE_HOST:-db}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-hroot}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE_NAME: ${DATABASE_NAME:-hroot_production}
+    depends_on:
+      db:
+        condition: service_healthy
+
+networks:
+  proxy-network:
+    external: true
+
+volumes:
+  db_data:
+EOFCOMPOSE
+  else
+    cat <<'EOFCOMPOSE' > docker-compose.yml
 services:
   db:
     image: mysql:8.0
@@ -412,6 +663,7 @@ services:
 volumes:
   db_data:
 EOFCOMPOSE
+  fi
   echo -e "-> Created docker-compose.yml"
 else
   echo -e "-> docker-compose.yml already present"
@@ -469,10 +721,13 @@ cat <<EOF > .env
 APP_DOMAIN=${APP_DOMAIN}
 APP_PORT=${APP_PORT}
 APP_PROTOCOL=${APP_PROTOCOL}
+ENABLE_SSL=${ENABLE_SSL}
+FORCE_SSL=${FORCE_SSL:-false}
+LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+CONTACT_EMAIL=${CONTACT_EMAIL}
 RAILS_ENV=production
 RAILS_SERVE_STATIC_FILES=true
 RAILS_LOG_TO_STDOUT=true
-FORCE_SSL=${FORCE_SSL:-false}
 
 # In-Browser Setup Wizard Security
 HROOT_SETUP_WIZARD=true
@@ -504,14 +759,19 @@ echo -e "-> Created ${GREEN}.env${NC} with secured credentials.\n"
 # ==============================================================================
 echo -e "${BOLD}9. Launching HROOT Services:${NC}"
 
+COMPOSE_ARGS=""
+if [ "$PROXY_MODE" = "shared" ] && [ -f "docker/overrides/shared-proxy.yml" ]; then
+  COMPOSE_ARGS="-f docker-compose.yml -f docker/overrides/shared-proxy.yml"
+fi
+
 if [ "$CAN_START" = true ]; then
   prompt_read -r -p "Do you want to start HROOT containers now? [Y/n]: " START_NOW
   START_NOW="${START_NOW:-Y}"
   if [[ "$START_NOW" =~ ^[Yy]$ ]]; then
     echo -e "\nPulling container images..."
     PULL_SUCCESS=true
-    if ! $DOCKER_CMD pull; then
-      if command -v sudo >/dev/null 2>&1 && sudo $DOCKER_CMD pull; then
+    if ! $DOCKER_CMD $COMPOSE_ARGS pull; then
+      if command -v sudo >/dev/null 2>&1 && sudo $DOCKER_CMD $COMPOSE_ARGS pull; then
         DOCKER_CMD="sudo $DOCKER_CMD"
       else
         PULL_SUCCESS=false
@@ -548,8 +808,8 @@ if [ "$CAN_START" = true ]; then
     fi
 
     echo -e "\nStarting containers in background..."
-    if ! $DOCKER_CMD up -d 2>/dev/null; then
-      if command -v sudo >/dev/null 2>&1 && sudo $DOCKER_CMD up -d; then
+    if ! $DOCKER_CMD $COMPOSE_ARGS up -d 2>/dev/null; then
+      if command -v sudo >/dev/null 2>&1 && sudo $DOCKER_CMD $COMPOSE_ARGS up -d; then
         DOCKER_CMD="sudo $DOCKER_CMD"
         echo -e "-> Containers started successfully (via sudo)."
       else
@@ -565,7 +825,11 @@ else
   echo -e "${YELLOW}Notice: Docker is not ready on this system.${NC}"
   echo "Configuration (.env, docker-compose.yml) has been generated successfully."
   echo "Once Docker is installed, start HROOT by navigating to ${TARGET_DIR} and running:"
-  echo "  docker compose up -d"
+  if [ -n "$COMPOSE_ARGS" ]; then
+    echo "  docker compose $COMPOSE_ARGS up -d"
+  else
+    echo "  docker compose up -d"
+  fi
 fi
 
 
@@ -586,7 +850,17 @@ echo "• Fresh Installation: Initializes a new database and creates your first 
 echo "• Major Upgrade (v3 → v4): Connects your existing v3 database, preserves all data, promotes an admin, and applies schema migrations."
 echo ""
 echo -e "Useful Commands in ${TARGET_DIR}:"
-echo "  $DOCKER_CMD ps              # Check container status"
-echo "  $DOCKER_CMD logs -f web     # View web application logs"
-echo "  $DOCKER_CMD down            # Stop services"
+if [ -n "$COMPOSE_ARGS" ]; then
+  echo "  $DOCKER_CMD $COMPOSE_ARGS ps              # Check container status"
+  echo "  $DOCKER_CMD $COMPOSE_ARGS logs -f web     # View web application logs"
+  echo "  $DOCKER_CMD $COMPOSE_ARGS down            # Stop services"
+else
+  echo "  $DOCKER_CMD ps              # Check container status"
+  echo "  $DOCKER_CMD logs -f web     # View web application logs"
+  if [ "$PROXY_MODE" = "builtin" ]; then
+    echo "  $DOCKER_CMD logs -f acme    # View Let's Encrypt SSL certificate provisioning status"
+    echo "  $DOCKER_CMD logs -f proxy   # View NGINX reverse proxy access & SSL routing"
+  fi
+  echo "  $DOCKER_CMD down            # Stop services"
+fi
 echo "=================================================================="
