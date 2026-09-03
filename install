@@ -427,6 +427,7 @@ if [ ! -f "docker-compose.yml" ]; then
 services:
   db:
     image: mysql:8.0
+    restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
     volumes:
       - db_data:/var/lib/mysql
@@ -446,6 +447,7 @@ services:
 
   web:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    restart: unless-stopped
     command: ./bin/rails server -b 0.0.0.0
     env_file:
       - .env
@@ -470,6 +472,7 @@ services:
 
   cron:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    restart: unless-stopped
     command: ./docker/cron-entrypoint.sh
     user: root
     env_file:
@@ -489,7 +492,7 @@ services:
   proxy:
     image: nginxproxy/nginx-proxy
     container_name: nginx-proxy
-    restart: always
+    restart: unless-stopped
     ports:
       - "${PROXY_HTTP_PORT:-80}:80"
       - "${PROXY_HTTPS_PORT:-443}:443"
@@ -504,7 +507,7 @@ services:
   acme:
     image: nginxproxy/acme-companion
     container_name: acme-companion
-    restart: always
+    restart: unless-stopped
     environment:
       NGINX_PROXY_CONTAINER: nginx-proxy
     volumes:
@@ -528,6 +531,7 @@ EOFCOMPOSE
 services:
   db:
     image: mysql:8.0
+    restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
     volumes:
       - db_data:/var/lib/mysql
@@ -547,6 +551,7 @@ services:
 
   web:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    restart: unless-stopped
     command: ./bin/rails server -b 0.0.0.0
     env_file:
       - .env
@@ -574,6 +579,7 @@ services:
 
   cron:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    restart: unless-stopped
     command: ./docker/cron-entrypoint.sh
     user: root
     env_file:
@@ -602,6 +608,7 @@ EOFCOMPOSE
 services:
   db:
     image: mysql:8.0
+    restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
     volumes:
       - db_data:/var/lib/mysql
@@ -621,6 +628,7 @@ services:
 
   web:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    restart: unless-stopped
     command: ./bin/rails server -b 0.0.0.0
     env_file:
       - .env
@@ -644,6 +652,7 @@ services:
 
   cron:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
+    restart: unless-stopped
     command: ./docker/cron-entrypoint.sh
     user: root
     env_file:
