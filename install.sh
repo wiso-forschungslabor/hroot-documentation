@@ -17,13 +17,15 @@ if [ ! -w "." ]; then
   fi
 fi
 
-# Helper to read from terminal even when piped via curl | bash
+# Helper to read from terminal even when piped via curl | bash (supports automated input via HROOT_NONINTERACTIVE=1)
 prompt_read() {
-  if [ -t 0 ]; then
+  if [ "${HROOT_NONINTERACTIVE:-}" = "1" ] || [ -n "${CI:-}" ]; then
     read "$@"
-  elif [ -r /dev/tty ]; then
+  elif [ -t 0 ]; then
+    read "$@"
+  elif [ -r /dev/tty ] && [ -w /dev/tty ]; then
     read "$@" < /dev/tty
-  elif [ -c /dev/tty ]; then
+  elif [ -c /dev/tty ] && [ -w /dev/tty ]; then
     read "$@" < /dev/tty
   else
     read "$@"
