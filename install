@@ -417,9 +417,49 @@ echo -e "-> Setup Token set: ${GREEN}${SETUP_TOKEN}${NC}\n"
 
 
 # ==============================================================================
-# 8. Orchestration Files & Security Keys
+# 8. SMS Gateway Configuration
 # ==============================================================================
-echo -e "${BOLD}8. Generating Orchestration Files & Security Keys...${NC}"
+echo -e "${BOLD}8. SMS Gateway Configuration:${NC}"
+echo "HROOT can dispatch SMS session reminders via an Android Smartphone Gateway."
+prompt_read -r -p "Enable SMS Notifications Gateway? [Y/n]: " ENABLE_SMS_INPUT
+ENABLE_SMS_INPUT="${ENABLE_SMS_INPUT:-Y}"
+
+SMS_PRIVATE_TOKEN=$(generate_secret 24)
+
+if [[ "$ENABLE_SMS_INPUT" =~ ^[Yy]$ ]]; then
+  ENABLE_SMS=true
+  COMPOSE_PROFILES="sms"
+
+  echo -e "\n${BOLD}SMS Gateway Routing Architecture:${NC}"
+  echo "1) Subpath: ${APP_PROTOCOL}://${APP_DOMAIN}/sms-gateway [Default — uses main domain SSL, no extra DNS]"
+  echo "2) Subdomain: ${APP_PROTOCOL}://sms.${APP_DOMAIN} (requires DNS A/CNAME record pointing to this server)"
+  prompt_read -r -p "Select SMS architecture [1/2]: " SMS_ROUTING_CHOICE
+  SMS_ROUTING_CHOICE="${SMS_ROUTING_CHOICE:-1}"
+
+  if [ "$SMS_ROUTING_CHOICE" = "2" ]; then
+    prompt_read -r -p "SMS Gateway Subdomain (Default: sms.${APP_DOMAIN}): " INPUT_SMS_DOMAIN
+    SMS_GATEWAY_DOMAIN="${INPUT_SMS_DOMAIN:-sms.${APP_DOMAIN}}"
+    SMS_GATEWAY_API_URL="${APP_PROTOCOL}://${SMS_GATEWAY_DOMAIN}/api/3rdparty/v1/messages"
+    echo -e "-> SMS Gateway Subdomain: ${GREEN}${SMS_GATEWAY_DOMAIN}${NC}"
+  else
+    SMS_GATEWAY_DOMAIN=""
+    SMS_GATEWAY_API_URL="${APP_PROTOCOL}://${APP_DOMAIN}/sms-gateway/api/3rdparty/v1/messages"
+    echo -e "-> SMS Gateway Subpath: ${GREEN}${APP_PROTOCOL}://${APP_DOMAIN}/sms-gateway${NC}"
+  fi
+  echo -e "-> Android Pairing Token: ${GREEN}${SMS_PRIVATE_TOKEN}${NC}\n"
+else
+  ENABLE_SMS=false
+  COMPOSE_PROFILES=""
+  SMS_GATEWAY_DOMAIN=""
+  SMS_GATEWAY_API_URL=""
+  echo -e "-> SMS Gateway disabled.\n"
+fi
+
+
+# ==============================================================================
+# 9. Orchestration Files & Security Keys
+# ==============================================================================
+echo -e "${BOLD}9. Generating Orchestration Files & Security Keys...${NC}"
 
 if [ ! -f "docker-compose.yml" ]; then
   if [ "$PROXY_MODE" = "builtin" ]; then
@@ -489,6 +529,41 @@ services:
       db:
         condition: service_healthy
 
+  sms-gateway:
+    image: ghcr.io/android-sms-gateway/server:latest
+    profiles: ["sms"]
+    restart: unless-stopped
+    environment:
+      VIRTUAL_HOST: ${SMS_GATEWAY_DOMAIN:-}
+      VIRTUAL_PORT: 3000
+      LETSENCRYPT_HOST: ${SMS_GATEWAY_DOMAIN:-}
+      LETSENCRYPT_EMAIL: ${CONTACT_EMAIL:-}
+      DATABASE_HOST: ${DATABASE_HOST:-db}
+      DATABASE_USER: ${DATABASE_USERNAME:-hroot}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE_DATABASE: sms_gateway
+      PRIVATE_TOKEN: ${SMS_GATEWAY_PRIVATE_TOKEN:-dev-sms-token}
+    volumes:
+      - ./docker/sms-gateway/config.yml:/app/config.yml:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  sms-gateway-worker:
+    image: ghcr.io/android-sms-gateway/server:latest
+    profiles: ["sms"]
+    restart: unless-stopped
+    command: /app/app worker
+    volumes:
+      - ./docker/sms-gateway/config.yml:/app/config.yml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      sms-gateway:
+        condition: service_started
+
   proxy:
     image: nginxproxy/nginx-proxy
     container_name: nginx-proxy
@@ -499,7 +574,7 @@ services:
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - certs:/etc/nginx/certs
-      - vhost:/etc/nginx/vhost.d
+      - ./docker/nginx/vhost.d:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
     depends_on:
       - web
@@ -514,7 +589,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - certs:/etc/nginx/certs
-      - vhost:/etc/nginx/vhost.d
+      - ./docker/nginx/vhost.d:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
       - acme:/etc/acme.sh
     depends_on:
@@ -523,7 +598,6 @@ services:
 volumes:
   db_data:
   certs:
-  vhost:
   html:
   acme:
 EOFCOMPOSE
@@ -680,7 +754,7 @@ else
 fi
 
 # Ensure persistent directories and config files exist
-mkdir -p uploads docker/mysql docker/sms-gateway
+mkdir -p uploads docker/mysql docker/sms-gateway docker/nginx/vhost.d
 if [ ! -f "docker/mysql/init.sql" ]; then
   cat <<'EOFSQL' > docker/mysql/init.sql
 CREATE DATABASE IF NOT EXISTS hroot_test;
@@ -691,8 +765,37 @@ FLUSH PRIVILEGES;
 EOFSQL
 fi
 
+if [ "$ENABLE_SMS" = true ] && [ "$SMS_ROUTING_CHOICE" != "2" ]; then
+  if [ ! -f "docker/nginx/vhost.d/default_location" ]; then
+    cat <<'EOFNGINX' > docker/nginx/vhost.d/default_location
+# Proxy routing for Android SMS Gateway running as subpath
+location /sms-gateway/ {
+    proxy_pass http://sms-gateway:3000/;
+    proxy_http_version 1.1;
+
+    # Support WebSockets / Server-Sent Events for Android device communication
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Timeouts for persistent device polling/connections
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+}
+
+location = /sms-gateway {
+    return 301 $scheme://$http_host/sms-gateway/;
+}
+EOFNGINX
+  fi
+fi
+
 if [ ! -f "docker/sms-gateway/config.yml" ]; then
-  cat <<'EOFCONFIG' > docker/sms-gateway/config.yml
+  cat <<EOFCONFIG > docker/sms-gateway/config.yml
 database:
   host: db
   port: 3306
@@ -703,7 +806,7 @@ database:
 
 gateway:
   mode: private
-  private_token: dev-sms-token
+  private_token: ${SMS_PRIVATE_TOKEN:-dev-sms-token}
 
 http:
   listen: 0.0.0.0:3000
@@ -759,15 +862,25 @@ DATABASE_USERNAME=${DATABASE_USERNAME}
 DATABASE_PASSWORD=${DATABASE_PASSWORD}
 MYSQL_ROOT_PASSWORD=${DB_ROOT_PW:-rootpassword}
 
+# Optional Service Profiles (e.g. 'sms' to start SMS Gateway containers)
+COMPOSE_PROFILES=${COMPOSE_PROFILES}
+
+# SMS Gateway Configuration
+SMS_FEATURE_ENABLED=${ENABLE_SMS}
+SMS_SEND_MODE=api
+SMS_GATEWAY_DOMAIN=${SMS_GATEWAY_DOMAIN}
+SMS_GATEWAY_API_URL=${SMS_GATEWAY_API_URL}
+SMS_GATEWAY_PRIVATE_TOKEN=${SMS_PRIVATE_TOKEN}
+
 EOF
 
 echo -e "-> Created ${GREEN}.env${NC} with secured credentials.\n"
 
 
 # ==============================================================================
-# 9. Launch HROOT Services
+# 10. Launch HROOT Services
 # ==============================================================================
-echo -e "${BOLD}9. Launching HROOT Services:${NC}"
+echo -e "${BOLD}10. Launching HROOT Services:${NC}"
 
 COMPOSE_ARGS=""
 if [ "$PROXY_MODE" = "shared" ] && [ -f "docker/overrides/shared-proxy.yml" ]; then
@@ -854,6 +967,10 @@ echo -e "==================================================================${NC}
 echo ""
 echo -e "${BOLD}Open in Browser:${NC} ${CYAN}${APP_PROTOCOL}://${APP_DOMAIN}/setup${NC}"
 echo -e "${BOLD}Setup Token:${NC}     ${YELLOW}${SETUP_TOKEN}${NC}"
+if [ "$ENABLE_SMS" = true ]; then
+  echo -e "${BOLD}SMS Gateway URL:${NC} ${CYAN}${SMS_GATEWAY_API_URL%/api/3rdparty/v1/messages}${NC}"
+  echo -e "${BOLD}SMS Pairing Token:${NC} ${YELLOW}${SMS_PRIVATE_TOKEN}${NC}"
+fi
 echo ""
 echo "Supported Scenarios in the Web Wizard:"
 echo "• Fresh Installation: Initializes a new database and creates your first Banking Admin."
