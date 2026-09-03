@@ -510,6 +510,7 @@ services:
     restart: unless-stopped
     environment:
       NGINX_PROXY_CONTAINER: nginx-proxy
+      CERTS_UPDATE_INTERVAL: 86400
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - certs:/etc/nginx/certs
