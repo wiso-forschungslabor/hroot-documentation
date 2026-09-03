@@ -370,9 +370,26 @@ echo -e "-> Application URL: ${GREEN}${APP_PROTOCOL}://${APP_DOMAIN}${NC}\n"
 
 
 # ==============================================================================
-# 6. Database Configuration
+# 6. Application Timezone Configuration
 # ==============================================================================
-echo -e "${BOLD}6. Database Configuration:${NC}"
+echo -e "${BOLD}6. Application Timezone Configuration:${NC}"
+HOST_TZ="Europe/Berlin"
+if [ -f "/etc/timezone" ]; then
+  HOST_TZ=$(cat /etc/timezone | tr -d '\r\n ')
+elif [ -L "/etc/localtime" ]; then
+  HOST_TZ=$(readlink /etc/localtime | sed -n 's/.*zoneinfo\///p')
+fi
+[ -z "$HOST_TZ" ] && HOST_TZ="Europe/Berlin"
+
+prompt_read -r -p "Application Timezone (Default: ${HOST_TZ}): " INPUT_TIMEZONE
+APP_TIMEZONE="${INPUT_TIMEZONE:-$HOST_TZ}"
+echo -e "-> Timezone set: ${GREEN}${APP_TIMEZONE}${NC}\n"
+
+
+# ==============================================================================
+# 7. Database Configuration
+# ==============================================================================
+echo -e "${BOLD}7. Database Configuration:${NC}"
 echo "1) Internal Docker MySQL Container (Default — for fresh install or restore from .sql dump)"
 echo "2) External / Existing MySQL Database Server (e.g. existing v3 server or university cluster)"
 prompt_read -r -p "Select database architecture [1/2]: " DB_CHOICE
@@ -406,9 +423,9 @@ echo -e "-> Database Target: ${GREEN}${DATABASE_USERNAME}@${DATABASE_HOST}:${DAT
 
 
 # ==============================================================================
-# 7. In-Browser Setup Security Token
+# 8. In-Browser Setup Security Token
 # ==============================================================================
-echo -e "${BOLD}7. In-Browser Setup Security Token:${NC}"
+echo -e "${BOLD}8. In-Browser Setup Security Token:${NC}"
 DEFAULT_TOKEN=$(generate_secret 16)
 echo "Enter a secure token to protect the web setup wizard at /setup."
 prompt_read -r -p "Setup Token (Press Enter for auto-generated token: ${DEFAULT_TOKEN}): " INPUT_TOKEN
@@ -417,9 +434,9 @@ echo -e "-> Setup Token set: ${GREEN}${SETUP_TOKEN}${NC}\n"
 
 
 # ==============================================================================
-# 8. SMS Gateway Configuration
+# 9. SMS Gateway Configuration
 # ==============================================================================
-echo -e "${BOLD}8. SMS Gateway Configuration:${NC}"
+echo -e "${BOLD}9. SMS Gateway Configuration:${NC}"
 echo "HROOT can dispatch SMS session reminders via an Android Smartphone Gateway."
 prompt_read -r -p "Enable SMS Notifications Gateway? [Y/n]: " ENABLE_SMS_INPUT
 ENABLE_SMS_INPUT="${ENABLE_SMS_INPUT:-Y}"
@@ -457,9 +474,9 @@ fi
 
 
 # ==============================================================================
-# 9. Orchestration Files & Security Keys
+# 10. Orchestration Files & Security Keys
 # ==============================================================================
-echo -e "${BOLD}9. Generating Orchestration Files & Security Keys...${NC}"
+echo -e "${BOLD}10. Generating Orchestration Files & Security Keys...${NC}"
 
 if [ ! -f "docker-compose.yml" ]; then
   if [ "$PROXY_MODE" = "builtin" ]; then
@@ -473,6 +490,7 @@ services:
       - db_data:/var/lib/mysql
       - ./docker/mysql:/docker-entrypoint-initdb.d
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${DATABASE_NAME:-hroot_production}
       MYSQL_USER: ${DATABASE_USERNAME:-hroot}
@@ -494,6 +512,7 @@ services:
     volumes:
       - ./uploads:/rails/public/uploads
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       RAILS_ENV: ${RAILS_ENV:-production}
       RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
       DATABASE_HOST: ${DATABASE_HOST:-db}
@@ -520,6 +539,7 @@ services:
     volumes:
       - ./uploads:/rails/public/uploads
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       RAILS_ENV: ${RAILS_ENV:-production}
       DATABASE_HOST: ${DATABASE_HOST:-db}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-hroot}
@@ -612,6 +632,7 @@ services:
       - db_data:/var/lib/mysql
       - ./docker/mysql:/docker-entrypoint-initdb.d
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${DATABASE_NAME:-hroot_production}
       MYSQL_USER: ${DATABASE_USERNAME:-hroot}
@@ -633,6 +654,7 @@ services:
     volumes:
       - ./uploads:/rails/public/uploads
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       RAILS_ENV: ${RAILS_ENV:-production}
       RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
       DATABASE_HOST: ${DATABASE_HOST:-db}
@@ -662,6 +684,7 @@ services:
     volumes:
       - ./uploads:/rails/public/uploads
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       RAILS_ENV: ${RAILS_ENV:-production}
       DATABASE_HOST: ${DATABASE_HOST:-db}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-hroot}
@@ -689,6 +712,7 @@ services:
       - db_data:/var/lib/mysql
       - ./docker/mysql:/docker-entrypoint-initdb.d
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${DATABASE_NAME:-hroot_production}
       MYSQL_USER: ${DATABASE_USERNAME:-hroot}
@@ -710,6 +734,7 @@ services:
     volumes:
       - ./uploads:/rails/public/uploads
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       RAILS_ENV: ${RAILS_ENV:-production}
       RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:-}
       DATABASE_HOST: ${DATABASE_HOST:-db}
@@ -735,6 +760,7 @@ services:
     volumes:
       - ./uploads:/rails/public/uploads
     environment:
+      TZ: ${APP_TIMEZONE:-Europe/Berlin}
       RAILS_ENV: ${RAILS_ENV:-production}
       DATABASE_HOST: ${DATABASE_HOST:-db}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-hroot}
@@ -834,6 +860,7 @@ cat <<EOF > .env
 APP_DOMAIN=${APP_DOMAIN}
 APP_PORT=${APP_PORT}
 APP_PROTOCOL=${APP_PROTOCOL}
+APP_TIMEZONE=${APP_TIMEZONE}
 ENABLE_SSL=${ENABLE_SSL}
 FORCE_SSL=${FORCE_SSL:-false}
 LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
@@ -878,9 +905,9 @@ echo -e "-> Created ${GREEN}.env${NC} with secured credentials.\n"
 
 
 # ==============================================================================
-# 10. Launch HROOT Services
+# 11. Launch HROOT Services
 # ==============================================================================
-echo -e "${BOLD}10. Launching HROOT Services:${NC}"
+echo -e "${BOLD}11. Launching HROOT Services:${NC}"
 
 COMPOSE_ARGS=""
 if [ "$PROXY_MODE" = "shared" ] && [ -f "docker/overrides/shared-proxy.yml" ]; then
