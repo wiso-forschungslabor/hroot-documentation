@@ -795,7 +795,7 @@ else
 fi
 
 # Ensure persistent directories and config files exist
-mkdir -p uploads docker/mysql docker/sms-gateway docker/nginx/vhost.d
+mkdir -p uploads docker/mysql docker/sms-gateway docker/nginx/vhost.d docker/overrides
 if [ ! -f "docker/mysql/init.sql" ]; then
   cat <<'EOFSQL' > docker/mysql/init.sql
 CREATE DATABASE IF NOT EXISTS hroot_test;
@@ -804,6 +804,41 @@ GRANT ALL PRIVILEGES ON *.* TO 'hroot'@'%';
 GRANT ALL PRIVILEGES ON sms_gateway.* TO 'hroot'@'%';
 FLUSH PRIVILEGES;
 EOFSQL
+fi
+
+# Ensure docker/overrides/ext-db.yml exists for reference
+if [ ! -f "docker/overrides/ext-db.yml" ]; then
+  cat <<'EOFOVERRIDE' > docker/overrides/ext-db.yml
+# docker/overrides/ext-db.yml
+# Use this when connecting to an external MySQL database server (e.g. university cluster).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker/overrides/ext-db.yml up -d
+# Or copy/link as docker-compose.override.yml in the application root (automatically loaded).
+services:
+  # Disable domestic database container by replacing it with an immediately healthy dummy service
+  db:
+    image: busybox:1.36
+    command: ["sh", "-c", "echo 'External database configured - domestic DB service disabled'; tail -f /dev/null"]
+    ports: []
+    volumes: []
+    healthcheck:
+      test: ["CMD", "sh", "-c", "exit 0"]
+      interval: 1s
+      timeout: 1s
+      retries: 1
+    restart: "no"
+EOFOVERRIDE
+fi
+
+# Automatically disable domestic DB container if external database was chosen
+if [ "$DB_CHOICE" = "2" ]; then
+  if [ ! -f "docker-compose.override.yml" ]; then
+    cp docker/overrides/ext-db.yml docker-compose.override.yml
+    echo -e "-> Generated docker-compose.override.yml to disable domestic DB container"
+  else
+    echo -e "-> docker-compose.override.yml already present"
+  fi
 fi
 
 if [ "$ENABLE_SMS" = true ] && [ "$SMS_ROUTING_CHOICE" != "2" ]; then
