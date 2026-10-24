@@ -16,9 +16,11 @@ If there are multiple subsections on a page, number them and add a horizontal li
 
 ## Text
 
-Technical information are to be highlighted as code, like so: `Text`
+Technical information are to be highlighted as code, like so: `text`
 
 When pointing to a page in HROOT, make it bold and add an arrow between each to levels. For example: **Site Settings -> Participation Pools**
+
+User-roles are italic, like _Admin_, _Experimenters_, etc.
 
 Abbreviates are written all capital, which includes HROOT. Exceptions are when the official or commonly used abbreviate differs.
 
