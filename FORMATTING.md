@@ -19,3 +19,5 @@ If there are multiple subsections on a page, number them and add a horizontal li
 Technical information are to be highlighted as code, like so: `Text`
 
 When pointing to a page in HROOT, make it bold and add an arrow between each to levels. For example: **Site Settings -> Participation Pools**
+
+Abbreviates are written in capital letters or as the , which includes HROOT.
