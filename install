@@ -57,6 +57,87 @@ generate_secret() {
   fi
 }
 
+# Helper function to detect host routing table and Docker networks to find collision-free RFC 1918 subnets
+detect_free_docker_subnets() {
+  local OCCUPIED=""
+  if command -v ip >/dev/null 2>&1; then
+    OCCUPIED=$(ip route show 2>/dev/null | awk '{print $1}' | grep -E '^[0-9]+\.[0-9]+' || true)
+  elif command -v netstat >/dev/null 2>&1; then
+    OCCUPIED=$(netstat -rn 2>/dev/null | awk '{print $1}' | grep -E '^[0-9]+\.[0-9]+' || true)
+  fi
+
+  if command -v docker >/dev/null 2>&1; then
+    local DOCKER_SUBNETS
+    DOCKER_SUBNETS=$($DOCKER_BASE network inspect $($DOCKER_BASE network ls -q 2>/dev/null) 2>/dev/null | grep -oE '"Subnet": "[^"]+"' | cut -d'"' -f4 || true)
+    OCCUPIED=$(printf "%s\n%s\n172.17.0.0/16\n" "$OCCUPIED" "$DOCKER_SUBNETS")
+  else
+    OCCUPIED=$(printf "%s\n172.17.0.0/16\n" "$OCCUPIED")
+  fi
+
+  local CANDIDATE_PAIRS=(
+    "10.201.1.0/24 10.201.0.0/24"
+    "10.202.1.0/24 10.202.0.0/24"
+    "10.210.1.0/24 10.210.0.0/24"
+    "10.240.1.0/24 10.240.0.0/24"
+    "192.168.210.0/24 192.168.211.0/24"
+    "192.168.220.0/24 192.168.221.0/24"
+    "172.30.10.0/24 172.30.11.0/24"
+  )
+
+  # Check with python3 if available for accurate bitwise CIDR overlap detection
+  if command -v python3 >/dev/null 2>&1 && python3 -c "import ipaddress" >/dev/null 2>&1; then
+    local SELECTED
+    SELECTED=$(python3 -c '
+import ipaddress, sys
+
+occupied_raw = sys.stdin.read().split()
+occupied = []
+for item in occupied_raw:
+    try:
+        occupied.append(ipaddress.ip_network(item.strip(), strict=False))
+    except Exception:
+        pass
+
+pairs = [
+    ("10.201.1.0/24", "10.201.0.0/24"),
+    ("10.202.1.0/24", "10.202.0.0/24"),
+    ("10.210.1.0/24", "10.210.0.0/24"),
+    ("10.240.1.0/24", "10.240.0.0/24"),
+    ("192.168.210.0/24", "192.168.211.0/24"),
+    ("192.168.220.0/24", "192.168.221.0/24"),
+    ("172.30.10.0/24", "172.30.11.0/24")
+]
+
+for app_net, proxy_net in pairs:
+    app_obj = ipaddress.ip_network(app_net)
+    proxy_obj = ipaddress.ip_network(proxy_net)
+    if not any(app_obj.overlaps(o) or proxy_obj.overlaps(o) for o in occupied):
+        print(f"{app_net} {proxy_net}")
+        sys.exit(0)
+
+print("10.201.1.0/24 10.201.0.0/24")
+' <<< "$OCCUPIED")
+    echo "$SELECTED"
+    return 0
+  fi
+
+  # Pure bash fallback
+  for pair in "${CANDIDATE_PAIRS[@]}"; do
+    local app_cand="${pair%% *}"
+    local proxy_cand="${pair##* }"
+    local prefix_app="${app_cand%.*.*}"
+    local prefix_proxy="${proxy_cand%.*.*}"
+
+    if ! echo "$OCCUPIED" | grep -qE "(${prefix_app}\.|${prefix_proxy}\.)"; then
+      echo "$pair"
+      return 0
+    fi
+  done
+
+  echo "10.201.1.0/24 10.201.0.0/24"
+}
+
+
 # ANSI Color formatting
 BOLD='\033[1m'
 GREEN='\033[0;32m'
@@ -88,6 +169,15 @@ echo -e "${BOLD}1. Pre-Flight System & Docker Check:${NC}"
 DOCKER_CMD="docker compose"
 DOCKER_BASE="docker"
 CAN_START=false
+IS_ROOTLESS=false
+DEFAULT_DOCKER_SOCKET="/var/run/docker.sock"
+
+# Check for user-level rootless runtime socket
+if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "${XDG_RUNTIME_DIR}/docker.sock" ]; then
+  DEFAULT_DOCKER_SOCKET="${XDG_RUNTIME_DIR}/docker.sock"
+elif [ -S "/run/user/$(id -u)/docker.sock" ]; then
+  DEFAULT_DOCKER_SOCKET="/run/user/$(id -u)/docker.sock"
+fi
 
 if command -v docker >/dev/null 2>&1; then
   if docker compose version >/dev/null 2>&1; then
@@ -98,23 +188,49 @@ if command -v docker >/dev/null 2>&1; then
     CAN_START=true
   fi
 
-  if docker info >/dev/null 2>&1; then
-    echo -e "-> Docker Engine: ${GREEN}Running and accessible (unprivileged)${NC}"
+  if docker info --format '{{.SecurityOptions}}' 2>/dev/null | grep -q 'rootless'; then
+    IS_ROOTLESS=true
+    echo -e "-> Docker Engine: ${GREEN}Running in Rootless Mode (Secure & Unprivileged)${NC}"
+    CTX_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null | sed 's#unix://##' || true)
+    if [ -S "$CTX_HOST" ]; then
+      DEFAULT_DOCKER_SOCKET="$CTX_HOST"
+    fi
+  elif docker info >/dev/null 2>&1; then
+    echo -e "-> Docker Engine: ${GREEN}Running and accessible${NC}"
   else
     echo -e "${YELLOW}Notice: Docker is installed, but user '${USER}' cannot access Docker daemon without sudo in the current session.${NC}"
-    if has_sudo_access; then
-      prompt_read -r -p "Add '${USER}' to docker group with sudo now? [Y/n]: " ADD_GRP
-      ADD_GRP="${ADD_GRP:-Y}"
-      if [[ "$ADD_GRP" =~ ^[Yy]$ ]]; then
-        if sudo usermod -aG docker "$USER" 2>/dev/null; then
-          echo -e "-> Added '${USER}' to docker group (takes effect on next login; using sudo for this session)."
+    ROOTLESS_SETUP=false
+    if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
+      prompt_read -r -p "Initialize Rootless Docker for '${USER}' now? (Recommended for secure, root-free operations) [Y/n]: " DO_ROOTLESS
+      DO_ROOTLESS="${DO_ROOTLESS:-Y}"
+      if [[ "$DO_ROOTLESS" =~ ^[Yy]$ ]]; then
+        if command -v loginctl >/dev/null 2>&1 && has_sudo_access; then
+          sudo loginctl enable-linger "$USER" 2>/dev/null || true
+        fi
+        if dockerd-rootless-setuptool.sh install; then
+          systemctl --user enable --now docker 2>/dev/null || true
+          export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
+          DEFAULT_DOCKER_SOCKET="/run/user/$(id -u)/docker.sock"
+          IS_ROOTLESS=true
+          CAN_START=true
+          DOCKER_CMD="docker compose"
+          DOCKER_BASE="docker"
+          ROOTLESS_SETUP=true
+          echo -e "${GREEN}-> Rootless Docker initialized and started successfully.${NC}"
         fi
       fi
-      DOCKER_CMD="sudo $DOCKER_CMD"
-      DOCKER_BASE="sudo docker"
-    else
-      echo -e "   Tip: To run HROOT unprivileged, ask your administrator to run:"
-      echo -e "   ${BOLD}sudo usermod -aG docker ${USER} && newgrp docker${NC}"
+    fi
+
+    if [ "$ROOTLESS_SETUP" != true ]; then
+      if has_sudo_access; then
+        echo -e "-> Continuing with sudo-based Docker commands for deployment tasks."
+        DOCKER_CMD="sudo $DOCKER_CMD"
+        DOCKER_BASE="sudo docker"
+      else
+        echo -e "   Tip: Run deployment commands with sudo:"
+        echo -e "   ${BOLD}sudo docker compose up -d${NC}"
+        echo -e "   Or run: ${BOLD}dockerd-rootless-setuptool.sh install && systemctl --user enable --now docker${NC}"
+      fi
     fi
   fi
 else
@@ -137,10 +253,11 @@ else
 
   if [ "$HAS_PKG_MGR" = true ] && has_sudo_access; then
     echo -e "\nOptions:"
-    echo "1) Install Docker & Compose automatically now (via ${PKG_MGR_NAME} & sudo) [Default]"
-    echo "2) Continue anyway (generate configuration files only, install Docker later)"
-    echo "3) Abort installation"
-    prompt_read -r -p "Select option [1/2/3]: " DOCKER_CHOICE
+    echo "1) Install Standard Docker & Compose (via ${PKG_MGR_NAME} & sudo) [Default]"
+    echo "2) Install Rootless Docker (Recommended: isolated, secure & root-free daemon)"
+    echo "3) Continue anyway (generate configuration files only, install Docker later)"
+    echo "4) Abort installation"
+    prompt_read -r -p "Select option [1/2/3/4]: " DOCKER_CHOICE
     DOCKER_CHOICE="${DOCKER_CHOICE:-1}"
 
     if [ "$DOCKER_CHOICE" = "1" ]; then
@@ -168,7 +285,6 @@ else
       fi
 
       if [ "$INSTALL_OK" = true ]; then
-        sudo usermod -aG docker "$USER" 2>/dev/null || true
         echo -e "${GREEN}-> Docker installed successfully.${NC}"
         CAN_START=true
         DOCKER_CMD="sudo docker compose"
@@ -177,7 +293,49 @@ else
         echo -e "${RED}Error: Automated package installation encountered an issue.${NC}"
         echo -e "Please ask your system administrator to install Docker & Docker Compose v2."
       fi
-    elif [ "$DOCKER_CHOICE" = "3" ]; then
+    elif [ "$DOCKER_CHOICE" = "2" ]; then
+      echo -e "\nInstalling Rootless Docker dependencies..."
+      ROOTLESS_OK=false
+      if command -v apt-get >/dev/null 2>&1; then
+        if sudo apt-get update -y && sudo apt-get install -y uidmap slirp4netns dbus-user-session docker.io docker-compose-v2; then
+          ROOTLESS_OK=true
+        fi
+      elif command -v dnf >/dev/null 2>&1; then
+        if sudo dnf install -y shadow-utils slirp4netns fuse-overlayfs docker docker-compose-plugin; then
+          ROOTLESS_OK=true
+        fi
+      fi
+
+      if [ "$ROOTLESS_OK" = true ]; then
+        # Configure unprivileged ports for 80 and 443
+        if [ -d /etc/sysctl.d ]; then
+          echo "net.ipv4.ip_unprivileged_port_start=80" | sudo tee /etc/sysctl.d/50-rootless-docker.conf >/dev/null 2>&1 || true
+          sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80 >/dev/null 2>&1 || true
+        fi
+        # Enable lingering so user services persist after logout
+        if command -v loginctl >/dev/null 2>&1; then
+          sudo loginctl enable-linger "$USER" 2>/dev/null || true
+        fi
+        if command -v dockerd-rootless-setuptool.sh >/dev/null 2>&1; then
+          dockerd-rootless-setuptool.sh install || true
+          systemctl --user enable --now docker 2>/dev/null || true
+          export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
+          DEFAULT_DOCKER_SOCKET="/run/user/$(id -u)/docker.sock"
+          IS_ROOTLESS=true
+          CAN_START=true
+          DOCKER_CMD="docker compose"
+          DOCKER_BASE="docker"
+          echo -e "${GREEN}-> Rootless Docker initialized successfully.${NC}"
+        else
+          echo -e "${YELLOW}Notice: Standard Docker packages installed. Run dockerd-rootless-setuptool.sh install to complete rootless setup.${NC}"
+          CAN_START=true
+          DOCKER_CMD="sudo docker compose"
+          DOCKER_BASE="sudo docker"
+        fi
+      else
+        echo -e "${RED}Error: Could not install Rootless Docker packages.${NC}"
+      fi
+    elif [ "$DOCKER_CHOICE" = "4" ]; then
       echo -e "\nInstallation aborted. Please install Docker and restart the installer."
       exit 0
     else
@@ -186,8 +344,8 @@ else
   else
     echo -e "   Notice: Docker is not installed and automated privilege is unavailable."
     echo -e "   Please ask your system administrator to install Docker Engine and Docker Compose v2."
-    echo -e "   Ubuntu/Debian: ${BOLD}sudo apt update && sudo apt install -y docker.io docker-compose-v2 && sudo usermod -aG docker ${USER}${NC}"
-    echo -e "   RHEL/AlmaLinux: ${BOLD}sudo dnf install -y docker docker-compose-plugin && sudo usermod -aG docker ${USER}${NC}\n"
+    echo -e "   Ubuntu/Debian: ${BOLD}sudo apt update && sudo apt install -y docker.io docker-compose-v2${NC}"
+    echo -e "   RHEL/AlmaLinux: ${BOLD}sudo dnf install -y docker docker-compose-plugin${NC}\n"
     prompt_read -r -p "Do you want to continue generating configuration files only? [y/N]: " CONT_CONF
     CONT_CONF="${CONT_CONF:-N}"
     if [[ ! "$CONT_CONF" =~ ^[Yy]$ ]]; then
@@ -357,10 +515,6 @@ else
     echo -e "\nEnter administrator email for Let's Encrypt certificate renewal notices:"
     prompt_read -r -p "Let's Encrypt Email: " LETSENCRYPT_EMAIL
     CONTACT_EMAIL="${LETSENCRYPT_EMAIL}"
-    # Ensure proxy-network exists in docker
-    if command -v docker >/dev/null 2>&1; then
-      $DOCKER_BASE network create proxy-network 2>/dev/null || true
-    fi
   else
     PROXY_MODE="none"
     ENABLE_SSL=false
@@ -369,6 +523,34 @@ else
   fi
 fi
 echo -e "-> Application URL: ${GREEN}${APP_PROTOCOL}://${APP_DOMAIN}${NC}\n"
+
+# Docker IPAM & Subnet Collision Detection
+echo -e "${BOLD}Docker Internal Network & Subnet Configuration:${NC}"
+echo "Scanning host routing table and Docker networks for RFC 1918 collisions..."
+FREE_SUBNET_PAIR=$(detect_free_docker_subnets)
+SUGGESTED_APP_SUBNET="${FREE_SUBNET_PAIR%% *}"
+SUGGESTED_PROXY_SUBNET="${FREE_SUBNET_PAIR##* }"
+
+echo -e "-> Detected collision-free Docker subnet: ${GREEN}${SUGGESTED_APP_SUBNET}${NC}"
+prompt_read -r -p "Application Docker Subnet (Default: ${SUGGESTED_APP_SUBNET}): " INPUT_DOCKER_SUBNET
+DOCKER_SUBNET="${INPUT_DOCKER_SUBNET:-$SUGGESTED_APP_SUBNET}"
+
+if [ "$PROXY_MODE" = "shared" ]; then
+  echo -e "-> Detected collision-free Shared Proxy subnet: ${GREEN}${SUGGESTED_PROXY_SUBNET}${NC}"
+  prompt_read -r -p "Shared Proxy Network Subnet (Default: ${SUGGESTED_PROXY_SUBNET}): " INPUT_PROXY_SUBNET
+  DOCKER_PROXY_SUBNET="${INPUT_PROXY_SUBNET:-$SUGGESTED_PROXY_SUBNET}"
+
+  # Ensure proxy-network exists in docker with explicit subnet
+  if command -v docker >/dev/null 2>&1; then
+    if ! $DOCKER_BASE network inspect proxy-network >/dev/null 2>&1; then
+      $DOCKER_BASE network create --subnet="${DOCKER_PROXY_SUBNET}" proxy-network 2>/dev/null || $DOCKER_BASE network create proxy-network 2>/dev/null || true
+    fi
+  fi
+else
+  DOCKER_PROXY_SUBNET="$SUGGESTED_PROXY_SUBNET"
+fi
+echo -e "-> Docker Subnet set: ${GREEN}${DOCKER_SUBNET}${NC}\n"
+
 
 
 # ==============================================================================
@@ -487,7 +669,7 @@ services:
   db:
     image: mysql:8.0
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password
+    command: --default-authentication-plugin=mysql_native_password --sql-mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/mysql:/docker-entrypoint-initdb.d
@@ -509,9 +691,12 @@ services:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
     restart: unless-stopped
     command: ./bin/rails server -b 0.0.0.0
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     env_file:
       - .env
     volumes:
+      - ./.env:/rails/.env
       - ./uploads:/rails/public/uploads
     environment:
       TZ: ${APP_TIMEZONE:-Europe/Berlin}
@@ -536,9 +721,12 @@ services:
     restart: unless-stopped
     command: ./docker/cron-entrypoint.sh
     user: root
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     env_file:
       - .env
     volumes:
+      - ./.env:/rails/.env
       - ./uploads:/rails/public/uploads
     environment:
       TZ: ${APP_TIMEZONE:-Europe/Berlin}
@@ -550,6 +738,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  updater:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    environment:
+      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_HTTP_API_UPDATE=true
+      - WATCHTOWER_HTTP_API_TOKEN=${UPDATE_WEBHOOK_SECRET:-hroot-updater-secret}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+      - REPO_USER=${UPDATE_GITHUB_USER:-${GITHUB_USER:-}}
+      - REPO_PASS=${UPDATE_GITHUB_TOKEN:-}
 
   sms-gateway:
     image: ghcr.io/android-sms-gateway/server:latest
@@ -578,6 +780,15 @@ services:
     profiles: ["sms"]
     restart: unless-stopped
     command: /app/app worker
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST:-db}
+      DATABASE_USER: ${DATABASE_USERNAME:-hroot}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE_DATABASE: sms_gateway
+      DATABASE__HOST: ${DATABASE_HOST:-db}
+      DATABASE__USER: ${DATABASE_USERNAME:-hroot}
+      DATABASE__PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE__DATABASE: sms_gateway
     volumes:
       - ./docker/sms-gateway/config.yml:/app/config.yml:ro
     depends_on:
@@ -607,7 +818,7 @@ services:
       - "${PROXY_HTTP_PORT:-80}:80"
       - "${PROXY_HTTPS_PORT:-443}:443"
     volumes:
-      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/tmp/docker.sock:ro
       - certs:/etc/nginx/certs
       - ./docker/nginx/vhost.d:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
@@ -622,7 +833,7 @@ services:
       NGINX_PROXY_CONTAINER: nginx-proxy
       CERTS_UPDATE_INTERVAL: 86400
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
       - certs:/etc/nginx/certs
       - ./docker/nginx/vhost.d:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
@@ -635,6 +846,13 @@ volumes:
   certs:
   html:
   acme:
+
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+        - subnet: ${DOCKER_SUBNET:-10.201.1.0/24}
 EOFCOMPOSE
   elif [ "$PROXY_MODE" = "shared" ]; then
     cat <<'EOFCOMPOSE' > docker-compose.yml
@@ -642,7 +860,7 @@ services:
   db:
     image: mysql:8.0
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password
+    command: --default-authentication-plugin=mysql_native_password --sql-mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/mysql:/docker-entrypoint-initdb.d
@@ -664,9 +882,12 @@ services:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
     restart: unless-stopped
     command: ./bin/rails server -b 0.0.0.0
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     env_file:
       - .env
     volumes:
+      - ./.env:/rails/.env
       - ./uploads:/rails/public/uploads
     environment:
       TZ: ${APP_TIMEZONE:-Europe/Berlin}
@@ -694,9 +915,12 @@ services:
     restart: unless-stopped
     command: ./docker/cron-entrypoint.sh
     user: root
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     env_file:
       - .env
     volumes:
+      - ./.env:/rails/.env
       - ./uploads:/rails/public/uploads
     environment:
       TZ: ${APP_TIMEZONE:-Europe/Berlin}
@@ -709,9 +933,28 @@ services:
       db:
         condition: service_healthy
 
+  updater:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    environment:
+      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_HTTP_API_UPDATE=true
+      - WATCHTOWER_HTTP_API_TOKEN=${UPDATE_WEBHOOK_SECRET:-hroot-updater-secret}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+      - REPO_USER=${UPDATE_GITHUB_USER:-${GITHUB_USER:-}}
+      - REPO_PASS=${UPDATE_GITHUB_TOKEN:-}
+
 networks:
   proxy-network:
     external: true
+  default:
+    ipam:
+      driver: default
+      config:
+        - subnet: ${DOCKER_SUBNET:-10.201.1.0/24}
 
 volumes:
   db_data:
@@ -722,7 +965,7 @@ services:
   db:
     image: mysql:8.0
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password
+    command: --default-authentication-plugin=mysql_native_password --sql-mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION"
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/mysql:/docker-entrypoint-initdb.d
@@ -744,9 +987,12 @@ services:
     image: ${HROOT_IMAGE:-ghcr.io/wiso-forschungslabor/hroot:latest}
     restart: unless-stopped
     command: ./bin/rails server -b 0.0.0.0
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     env_file:
       - .env
     volumes:
+      - ./.env:/rails/.env
       - ./uploads:/rails/public/uploads
     environment:
       TZ: ${APP_TIMEZONE:-Europe/Berlin}
@@ -770,9 +1016,12 @@ services:
     restart: unless-stopped
     command: ./docker/cron-entrypoint.sh
     user: root
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     env_file:
       - .env
     volumes:
+      - ./.env:/rails/.env
       - ./uploads:/rails/public/uploads
     environment:
       TZ: ${APP_TIMEZONE:-Europe/Berlin}
@@ -785,8 +1034,89 @@ services:
       db:
         condition: service_healthy
 
+  updater:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    environment:
+      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_HTTP_API_UPDATE=true
+      - WATCHTOWER_HTTP_API_TOKEN=${UPDATE_WEBHOOK_SECRET:-hroot-updater-secret}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+      - REPO_USER=${UPDATE_GITHUB_USER:-${GITHUB_USER:-}}
+      - REPO_PASS=${UPDATE_GITHUB_TOKEN:-}
+
+  sms-gateway:
+    image: ghcr.io/android-sms-gateway/server:latest
+    profiles: ["sms"]
+    restart: unless-stopped
+    environment:
+      VIRTUAL_HOST: ${SMS_GATEWAY_DOMAIN:-}
+      VIRTUAL_PORT: 3000
+      DATABASE_HOST: ${DATABASE_HOST:-db}
+      DATABASE_USER: ${DATABASE_USERNAME:-hroot}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE_DATABASE: sms_gateway
+      DATABASE__HOST: ${DATABASE_HOST:-db}
+      DATABASE__USER: ${DATABASE_USERNAME:-hroot}
+      DATABASE__PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE__DATABASE: sms_gateway
+      PRIVATE_TOKEN: ${SMS_GATEWAY_PRIVATE_TOKEN:-dev-sms-token}
+      GATEWAY__PRIVATE_TOKEN: ${SMS_GATEWAY_PRIVATE_TOKEN:-dev-sms-token}
+    volumes:
+      - ./docker/sms-gateway/config.yml:/app/config.yml:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  sms-gateway-worker:
+    image: ghcr.io/android-sms-gateway/server:latest
+    profiles: ["sms"]
+    restart: unless-stopped
+    command: /app/app worker
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST:-db}
+      DATABASE_USER: ${DATABASE_USERNAME:-hroot}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE_DATABASE: sms_gateway
+      DATABASE__HOST: ${DATABASE_HOST:-db}
+      DATABASE__USER: ${DATABASE_USERNAME:-hroot}
+      DATABASE__PASSWORD: ${DATABASE_PASSWORD:-hrootpassword}
+      DATABASE__DATABASE: sms_gateway
+    volumes:
+      - ./docker/sms-gateway/config.yml:/app/config.yml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      sms-gateway:
+        condition: service_started
+
+  sms-dashboard:
+    image: ghcr.io/android-sms-gateway/web-dashboard:latest
+    profiles: ["sms"]
+    restart: unless-stopped
+    environment:
+      HTTP__ADDRESS: 0.0.0.0:3000
+      GATEWAY__URL: http://sms-gateway:3000/api/3rdparty/v1
+    ports:
+      - "3002:3000"
+    depends_on:
+      sms-gateway:
+        condition: service_started
+
 volumes:
   db_data:
+
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+        - subnet: ${DOCKER_SUBNET:-10.201.1.0/24}
 EOFCOMPOSE
   fi
   echo -e "-> Created docker-compose.yml"
@@ -841,12 +1171,17 @@ if [ "$DB_CHOICE" = "2" ]; then
   fi
 fi
 
-if [ "$ENABLE_SMS" = true ] && [ "$SMS_ROUTING_CHOICE" != "2" ]; then
+# Ensure NGINX default_location is prepared for SMS Gateway & Dashboard (supports retroactive activation)
+if [ "$PROXY_MODE" = "builtin" ] && [ "${SMS_ROUTING_CHOICE:-1}" != "2" ]; then
   if [ ! -f "docker/nginx/vhost.d/default_location" ]; then
     cat <<'EOFNGINX' > docker/nginx/vhost.d/default_location
+# Docker internal DNS resolver for on-demand container resolution
+resolver 127.0.0.11 valid=30s;
+
 # Proxy routing for Android SMS Gateway running as subpath
 location /sms-gateway/ {
-    proxy_pass http://sms-gateway:3000/;
+    set $upstream_sms_gw http://sms-gateway:3000;
+    proxy_pass $upstream_sms_gw/;
     proxy_http_version 1.1;
 
     # Support WebSockets / Server-Sent Events for Android device communication
@@ -869,7 +1204,8 @@ location = /sms-gateway {
 
 # Proxy routing for SMS Gateway Web Dashboard
 location /sms-dashboard/ {
-    proxy_pass http://sms-dashboard:3000/;
+    set $upstream_sms_dash http://sms-dashboard:3000;
+    proxy_pass $upstream_sms_dash/;
     proxy_http_version 1.1;
 
     proxy_set_header Upgrade $http_upgrade;
@@ -886,17 +1222,45 @@ location = /sms-dashboard {
 }
 
 location /_app/ {
-    proxy_pass http://sms-dashboard:3000/_app/;
+    set $upstream_sms_dash http://sms-dashboard:3000;
+    proxy_pass $upstream_sms_dash/_app/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# Proxy routing for SMS Gateway Web Dashboard API (auth, devices, messages)
+location /api/ {
+    set $upstream_sms_dash http://sms-dashboard:3000;
+    proxy_pass $upstream_sms_dash/api/;
+    proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 }
 EOFNGINX
+  else
+    # Ensure /api/ route is present in existing default_location
+    if ! grep -q "location /api/" "docker/nginx/vhost.d/default_location" 2>/dev/null; then
+      cat <<'EOFNGINX' >> "docker/nginx/vhost.d/default_location"
+
+# Proxy routing for SMS Gateway Web Dashboard API (auth, devices, messages)
+location /api/ {
+    proxy_pass http://sms-dashboard:3000/api/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+EOFNGINX
+    fi
   fi
 fi
 
-if [ ! -f "docker/sms-gateway/config.yml" ]; then
+if [ "$ENABLE_SMS" = true ] || [ ! -f "docker/sms-gateway/config.yml" ]; then
   cat <<EOFCONFIG > docker/sms-gateway/config.yml
 database:
   host: db
@@ -908,7 +1272,7 @@ database:
 
 gateway:
   mode: private
-  private_token: ${SMS_PRIVATE_TOKEN:-dev-sms-token}
+  private_token: ${SMS_GATEWAY_PRIVATE_TOKEN:-${SMS_PRIVATE_TOKEN:-dev-sms-token}}
 
 http:
   listen: 0.0.0.0:3000
@@ -953,6 +1317,14 @@ HROOT_SETUP_TOKEN=${SETUP_TOKEN}
 HROOT_IMAGE=${HROOT_IMAGE}
 UPDATE_GITHUB_REPO=${UPDATE_REPO}
 UPDATE_BRANCH=${TARGET_BRANCH_NAME}
+UPDATE_GITHUB_USER=${GITHUB_USER}
+UPDATE_GITHUB_TOKEN=${GITHUB_TOKEN}
+# Docker Daemon Socket (defaults to /var/run/docker.sock, or user runtime socket for Rootless Docker)
+DOCKER_SOCKET=${DEFAULT_DOCKER_SOCKET}
+
+# Automatic Updates (Watchtower)
+UPDATE_WEBHOOK_URL=http://updater:8080/v1/update
+UPDATE_WEBHOOK_SECRET=$(generate_secret 16)
 
 # Application Secrets
 SECRET_KEY_BASE=${SECRET_KEY}
@@ -977,8 +1349,14 @@ SMS_GATEWAY_PRIVATE_TOKEN=${SMS_PRIVATE_TOKEN}
 SMS_GATEWAY_API_USERNAME=
 SMS_GATEWAY_API_PASSWORD=
 
+# Docker Network IPAM Configuration (Collision-free RFC 1918 subnet)
+DOCKER_SUBNET=${DOCKER_SUBNET}
+DOCKER_PROXY_SUBNET=${DOCKER_PROXY_SUBNET}
+
+
 EOF
 
+chmod 600 .env 2>/dev/null || true
 echo -e "-> Created ${GREEN}.env${NC} with secured credentials.\n"
 
 
@@ -990,6 +1368,9 @@ echo -e "${BOLD}11. Launching HROOT Services:${NC}"
 COMPOSE_ARGS=""
 if [ "$PROXY_MODE" = "shared" ] && [ -f "docker/overrides/shared-proxy.yml" ]; then
   COMPOSE_ARGS="-f docker-compose.yml -f docker/overrides/shared-proxy.yml"
+  if [ -f "docker-compose.override.yml" ]; then
+    COMPOSE_ARGS="$COMPOSE_ARGS -f docker-compose.override.yml"
+  fi
 fi
 
 if [ "$CAN_START" = true ]; then
@@ -1042,8 +1423,7 @@ if [ "$CAN_START" = true ]; then
         echo -e "-> Containers started successfully (via sudo)."
       else
         echo -e "${RED}Error: Failed to connect to Docker daemon.${NC}"
-        echo "If you received a permission denied error, add your user to the docker group:"
-        echo "  sudo usermod -aG docker \$USER && newgrp docker"
+        echo "If you received a permission denied error, run this installer as a deploy/admin user with sudo access."
       fi
     else
       echo -e "-> Containers started."
@@ -1080,6 +1460,30 @@ echo ""
 echo "Supported Scenarios in the Web Wizard:"
 echo "• Fresh Installation: Initializes a new database and creates your first Banking Admin."
 echo "• Major Upgrade (v3 → v4): Connects your existing v3 database, preserves all data, promotes an admin, and applies schema migrations."
+if [ "$PROXY_MODE" = "none" ]; then
+  echo ""
+  echo -e "${YELLOW}${BOLD}Host Reverse Proxy Notice (External Apache / Nginx):${NC}"
+  echo "Because you selected Standalone mode, configure your host webserver:"
+  echo ""
+  echo -e "${CYAN}Apache 2.4 VirtualHost (*:443):${NC}"
+  echo "  # Main Rails Application (Port 3000):"
+  echo "  ProxyPass / http://127.0.0.1:${APP_PORT:-3000}/ retry=0"
+  echo "  ProxyPassReverse / http://127.0.0.1:${APP_PORT:-3000}/"
+  echo ""
+  echo "  # If SMS Gateway is enabled (Ports 3001 & 3002):"
+  echo "  RewriteEngine On"
+  echo "  RewriteCond %{HTTP:Upgrade} websocket [NC]"
+  echo "  RewriteCond %{HTTP:Connection} upgrade [NC]"
+  echo "  RewriteRule ^/sms-gateway/?(.*) \"ws://127.0.0.1:3001/\$1\" [P,L]"
+  echo "  ProxyPass /sms-gateway/ http://127.0.0.1:3001/ retry=0 timeout=600"
+  echo "  ProxyPassReverse /sms-gateway/ http://127.0.0.1:3001/"
+  echo "  ProxyPass /sms-dashboard/ http://127.0.0.1:3002/ retry=0"
+  echo "  ProxyPassReverse /sms-dashboard/ http://127.0.0.1:3002/"
+  echo "  ProxyPass /_app/ http://127.0.0.1:3002/_app/ retry=0"
+  echo "  ProxyPassReverse /_app/ http://127.0.0.1:3002/_app/"
+  echo "  ProxyPass /api/ http://127.0.0.1:3002/api/ retry=0"
+  echo "  ProxyPassReverse /api/ http://127.0.0.1:3002/api/"
+fi
 echo ""
 echo -e "Useful Commands in ${TARGET_DIR}:"
 if [ -n "$COMPOSE_ARGS" ]; then
