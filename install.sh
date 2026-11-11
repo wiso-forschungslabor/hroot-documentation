@@ -57,6 +57,40 @@ generate_secret() {
   fi
 }
 
+# Helper function to validate GitHub credentials and registry access
+validate_github_credentials() {
+  local user="$1"
+  local token="$2"
+
+  if [ -z "$user" ] || [ -z "$token" ]; then
+    return 1
+  fi
+
+  # 1. Test against GitHub REST API
+  if command -v curl >/dev/null 2>&1; then
+    local http_code
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $token" -H "User-Agent: HROOT-Installer" https://api.github.com/user 2>/dev/null || echo "000")
+    if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+      return 2
+    elif [ "$http_code" = "200" ]; then
+      return 0
+    fi
+  fi
+
+  # 2. Test against Docker Registry (ghcr.io)
+  if command -v docker >/dev/null 2>&1; then
+    if echo "$token" | $DOCKER_BASE login ghcr.io -u "$user" --password-stdin >/dev/null 2>&1; then
+      return 0
+    elif command -v sudo >/dev/null 2>&1 && echo "$token" | sudo docker login ghcr.io -u "$user" --password-stdin >/dev/null 2>&1; then
+      return 0
+    else
+      return 2
+    fi
+  fi
+
+  return 0
+}
+
 # Helper function to detect host routing table and Docker networks to find collision-free RFC 1918 subnets
 detect_free_docker_subnets() {
   local OCCUPIED=""
@@ -363,30 +397,81 @@ echo ""
 echo -e "${BOLD}2. GitHub Authorization Credentials:${NC}"
 echo "Please provide your authorized GitHub credentials to access the container registry."
 
-if [ -z "$GITHUB_USER" ]; then
-  prompt_read -r -p "GitHub Username: " GITHUB_USER
+# Detect existing .env credentials if present
+EXISTING_ENV=""
+if [ -f ".env" ]; then
+  EXISTING_ENV=".env"
+elif [ -f "hroot/.env" ]; then
+  EXISTING_ENV="hroot/.env"
 fi
 
-if [ -z "$GITHUB_TOKEN" ]; then
-  echo -e "\nEnter your GitHub Personal Access Token (classic with 'repo' & 'read:packages' scopes):"
-  prompt_read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
-  echo ""
+if [ -n "$EXISTING_ENV" ]; then
+  [ -z "$GITHUB_USER" ] && GITHUB_USER=$(grep -E '^(UPDATE_GITHUB_USER|GITHUB_USER)=' "$EXISTING_ENV" 2>/dev/null | head -n1 | cut -d'=' -f2- | tr -d ' "\r\n' || true)
+  [ -z "$GITHUB_TOKEN" ] && GITHUB_TOKEN=$(grep -E '^(UPDATE_GITHUB_TOKEN|GITHUB_TOKEN)=' "$EXISTING_ENV" 2>/dev/null | head -n1 | cut -d'=' -f2- | tr -d ' "\r\n' || true)
 fi
 
-if [ -z "$GITHUB_USER" ] || [ -z "$GITHUB_TOKEN" ]; then
-  echo -e "\n${RED}Error: GitHub username and Personal Access Token are required.${NC}"
-  exit 1
-fi
-
-if command -v docker >/dev/null 2>&1; then
-  if echo "$GITHUB_TOKEN" | $DOCKER_BASE login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-    echo -e "-> Successfully authenticated with ${GREEN}ghcr.io${NC}."
-  elif command -v sudo >/dev/null 2>&1; then
-    if echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
-      echo -e "-> Authenticated with ${GREEN}ghcr.io${NC} (via sudo fallback)."
+# Validate existing credentials if found
+if [ -n "$GITHUB_USER" ] && [ -n "$GITHUB_TOKEN" ]; then
+  echo -e "Found existing credentials for user '${CYAN}${GITHUB_USER}${NC}'."
+  echo -n "Checking GitHub token validity... "
+  if validate_github_credentials "$GITHUB_USER" "$GITHUB_TOKEN"; then
+    echo -e "${GREEN}Valid (HTTP 200)!${NC}"
+    echo "$GITHUB_TOKEN" | $DOCKER_BASE login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1 || true
+  else
+    echo -e "${RED}Invalid or Expired (HTTP 401/403)!${NC}"
+    echo -e "${YELLOW}Warning: The saved GitHub Personal Access Token is no longer accepted by GitHub.${NC}"
+    prompt_read -r -p "Would you like to enter a new GitHub token now? [Y/n]: " RENEW_TOKEN
+    RENEW_TOKEN="${RENEW_TOKEN:-Y}"
+    if [[ "$RENEW_TOKEN" =~ ^[Yy]$ ]]; then
+      GITHUB_USER=""
+      GITHUB_TOKEN=""
     fi
   fi
 fi
+
+while [ -z "$GITHUB_USER" ] || [ -z "$GITHUB_TOKEN" ]; do
+  if [ -z "$GITHUB_USER" ]; then
+    prompt_read -r -p "GitHub Username: " GITHUB_USER
+  fi
+
+  if [ -z "$GITHUB_TOKEN" ]; then
+    echo -e "\nEnter your GitHub Personal Access Token (classic with 'repo' & 'read:packages' scopes):"
+    prompt_read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
+    echo ""
+  fi
+
+  if [ -z "$GITHUB_USER" ] || [ -z "$GITHUB_TOKEN" ]; then
+    echo -e "\n${RED}Error: GitHub username and Personal Access Token are required.${NC}"
+    continue
+  fi
+
+  echo -n "Verifying GitHub credentials... "
+  if validate_github_credentials "$GITHUB_USER" "$GITHUB_TOKEN"; then
+    echo -e "${GREEN}Authentication verified!${NC}"
+    if echo "$GITHUB_TOKEN" | $DOCKER_BASE login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+      echo -e "-> Successfully authenticated with ${GREEN}ghcr.io${NC}."
+    elif command -v sudo >/dev/null 2>&1; then
+      if echo "$GITHUB_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+        echo -e "-> Authenticated with ${GREEN}ghcr.io${NC} (via sudo fallback)."
+      fi
+    fi
+    break
+  else
+    echo -e "${RED}Verification failed!${NC}"
+    echo -e "${YELLOW}The token was rejected by GitHub (HTTP 401/403). Please verify:${NC}"
+    echo "  1. Classic PAT ('Tokens (classic)') with 'read:packages' scope"
+    echo "  2. Account is a member of '@hroot-licensees'"
+    echo "  3. Token expiration date"
+    prompt_read -r -p "Try entering credentials again? [Y/n]: " RETRY_PAT
+    RETRY_PAT="${RETRY_PAT:-Y}"
+    if [[ ! "$RETRY_PAT" =~ ^[Yy]$ ]]; then
+      echo -e "\n${RED}Cannot proceed without valid GitHub credentials.${NC}"
+      exit 1
+    fi
+    GITHUB_USER=""
+    GITHUB_TOKEN=""
+  fi
+done
 echo ""
 
 
@@ -1379,11 +1464,48 @@ if [ "$CAN_START" = true ]; then
   if [[ "$START_NOW" =~ ^[Yy]$ ]]; then
     echo -e "\nPulling container images..."
     PULL_SUCCESS=true
-    if ! $DOCKER_CMD $COMPOSE_ARGS pull; then
-      if command -v sudo >/dev/null 2>&1 && sudo $DOCKER_CMD $COMPOSE_ARGS pull; then
+    PULL_OUTPUT=""
+    if ! PULL_OUTPUT=$($DOCKER_CMD $COMPOSE_ARGS pull 2>&1); then
+      if command -v sudo >/dev/null 2>&1 && SUDO_OUTPUT=$(sudo $DOCKER_CMD $COMPOSE_ARGS pull 2>&1); then
         DOCKER_CMD="sudo $DOCKER_CMD"
+        PULL_SUCCESS=true
       else
         PULL_SUCCESS=false
+      fi
+    fi
+
+    # If pull failed due to missing or expired GHCR authorization, prompt for renewed PAT
+    if [ "$PULL_SUCCESS" = false ]; then
+      if echo "$PULL_OUTPUT" | grep -qiE "ghcr\.io|denied|unauthorized|not found|httpReadSeeker"; then
+        echo -e "\n${YELLOW}${BOLD}=================================================================="
+        echo "⚠️  GitHub Container Registry (GHCR) Access Denied / Token Expired"
+        echo -e "==================================================================${NC}"
+        echo "Could not pull image '${HROOT_IMAGE}'."
+        echo "This indicates that the GitHub Personal Access Token (PAT) is invalid,"
+        echo "expired, or lacks permission for the private repository/team (@hroot-licensees)."
+        echo "=================================================================="
+        prompt_read -r -p "Would you like to enter a new GitHub Username & Token (PAT) now? [Y/n]: " ENTER_NEW_PAT
+        ENTER_NEW_PAT="${ENTER_NEW_PAT:-Y}"
+        if [[ "$ENTER_NEW_PAT" =~ ^[Yy]$ ]]; then
+          prompt_read -r -p "GitHub Username: " GITHUB_USER
+          echo -e "\nEnter your GitHub Personal Access Token (classic with 'read:packages'):"
+          prompt_read -r -s -p "GitHub Token (PAT): " GITHUB_TOKEN
+          echo ""
+          if [ -n "$GITHUB_USER" ] && [ -n "$GITHUB_TOKEN" ]; then
+            if echo "$GITHUB_TOKEN" | $DOCKER_BASE login ghcr.io -u "$GITHUB_USER" --password-stdin >/dev/null 2>&1; then
+              echo -e "-> Re-authenticated with ${GREEN}ghcr.io${NC}."
+              # Update .env if present
+              if [ -f ".env" ]; then
+                sed -i "s|^UPDATE_GITHUB_USER=.*|UPDATE_GITHUB_USER=${GITHUB_USER}|" .env 2>/dev/null || true
+                sed -i "s|^UPDATE_GITHUB_TOKEN=.*|UPDATE_GITHUB_TOKEN=${GITHUB_TOKEN}|" .env 2>/dev/null || true
+              fi
+              echo -e "\nRetrying container image pull..."
+              if $DOCKER_CMD $COMPOSE_ARGS pull; then
+                PULL_SUCCESS=true
+              fi
+            fi
+          fi
+        fi
       fi
     fi
 
