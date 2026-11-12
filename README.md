@@ -16,22 +16,3 @@ curl -fsSL https://raw.githubusercontent.com/wiso-forschungslabor/hroot-document
 
 ---
 
-## 1-Command Updating (`update.sh`)
-
-To update an existing Docker-based HROOT installation (automatically validates GitHub token / PAT, creates pre-update database backup, pulls updated images, and restarts containers):
-
-```bash
-# Navigate to your HROOT directory and execute:
-curl -fsSL https://raw.githubusercontent.com/wiso-forschungslabor/hroot-documentation/master/update.sh | bash
-```
-
-*(Alternatively, if working directly inside the cloned repository, run `./bin/update`)*.
-
----
-
-## Key Documentation Topics
-
-* 🚀 **[First Steps After Installation](https://github.com/wiso-forschungslabor/hroot-documentation/wiki/First-steps-after-installation)**
-* 🔄 **[Updating an Existing Installation](https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Updating-an-existing-installation)**
-* 🛡️ **[Migrating to Rootless Docker](https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Migrating-an-Existing-Docker-Installation-to-Rootless-Docker)**
-* 📦 **[Migrating from Legacy Bare-Metal to Docker](https://github.com/wiso-forschungslabor/hroot-documentation/wiki/Migrating-from-Legacy-Installation-to-Docker)**
