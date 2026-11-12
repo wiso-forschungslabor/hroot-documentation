@@ -22,10 +22,37 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Ensure script runs from the application root directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Determine application directory safely (supports local execution, bin/ path, and piped curl | bash)
+if [ -f ".env" ]; then
+  APP_DIR="$(pwd)"
+elif [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "$(dirname "${BASH_SOURCE[0]}")/../.env" ]; then
+  APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+elif [ -f "${HOME}/hroot/.env" ]; then
+  APP_DIR="${HOME}/hroot"
+else
+  APP_DIR="$(pwd)"
+fi
 cd "${APP_DIR}"
+
+# Automatically install or update local bin/update for convenience if bin/ directory exists
+if [ -d "${APP_DIR}/bin" ] && [ ! -f "${APP_DIR}/bin/update" ]; then
+  curl -fsSL https://raw.githubusercontent.com/wiso-forschungslabor/hroot-documentation/master/update > "${APP_DIR}/bin/update" 2>/dev/null && chmod +x "${APP_DIR}/bin/update" 2>/dev/null || true
+fi
+
+# Helper to read from terminal even when piped via curl | bash (supports automated input via HROOT_NONINTERACTIVE=1)
+prompt_read() {
+  if [ "${HROOT_NONINTERACTIVE:-}" = "1" ] || [ -n "${CI:-}" ]; then
+    return 0
+  elif [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    read "$@" < /dev/tty || true
+  elif [ -c /dev/tty ] && [ -w /dev/tty ]; then
+    read "$@" < /dev/tty || true
+  elif [ -t 0 ]; then
+    read "$@" || true
+  else
+    read "$@" || true
+  fi
+}
 
 echo -e "${BOLD}=================================================================="
 echo "                   HROOT System Update Utility                   "
@@ -157,13 +184,13 @@ if [ "$TOKEN_VALID" = false ]; then
   echo "=================================================================="
   echo ""
 
-  read -r -p "Would you like to enter a new GitHub Token now? [Y/n]: " DO_ENTER_PAT
+  prompt_read -r -p "Would you like to enter a new GitHub Token now? [Y/n]: " DO_ENTER_PAT
   DO_ENTER_PAT="${DO_ENTER_PAT:-Y}"
   if [[ "$DO_ENTER_PAT" =~ ^[Yy]$ ]]; then
-    read -r -p "GitHub Username [${GH_USER}]: " INPUT_USER
+    prompt_read -r -p "GitHub Username [${GH_USER}]: " INPUT_USER
     GH_USER="${INPUT_USER:-$GH_USER}"
 
-    read -r -s -p "GitHub Personal Access Token (PAT): " INPUT_TOKEN
+    prompt_read -r -s -p "GitHub Personal Access Token (PAT): " INPUT_TOKEN
     echo ""
     GH_TOKEN="${INPUT_TOKEN:-}"
 
@@ -210,7 +237,7 @@ echo -e "${BOLD}2. Ready to Update:${NC}"
 echo "Target Image: ${CYAN}${HROOT_IMAGE}${NC}"
 echo "Compose Args: ${CYAN}${COMPOSE_ARGS[*]}${NC}"
 echo ""
-read -r -p "Do you want to proceed with the system update now? [Y/n]: " CONFIRM_UPDATE
+prompt_read -r -p "Do you want to proceed with the system update now? [Y/n]: " CONFIRM_UPDATE
 CONFIRM_UPDATE="${CONFIRM_UPDATE:-Y}"
 if [[ ! "$CONFIRM_UPDATE" =~ ^[Yy]$ ]]; then
   echo -e "\nUpdate cancelled."
